@@ -49,7 +49,7 @@ Follow these step-by-step Windows commands in **PowerShell** or **Command Prompt
 ### Step 1: Open PowerShell in the project directory
 Make sure your terminal is opened at the `backend` folder:
 ```powershell
-cd "c:\Users\Kishan\Desktop\code carnival\backend"
+cd "c:\Users\Anant\Desktop\code carnival\backend"
 ```
 
 ---
