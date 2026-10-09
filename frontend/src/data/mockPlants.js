@@ -1,0 +1,72 @@
+export const mockPlants = [
+  {
+    id: 1,
+    name: "Tomato",
+    species: "Solanum lycopersicum",
+    type: "Vegetable",
+    health: "Healthy",
+    healthScore: 92,
+    nextWatering: "Today",
+    lastWatered: "Yesterday",
+    plantedDate: "15 Sep 2026",
+    waterAmount: "500 ml",
+    wateringReason: "Warm temperature and low humidity.",
+    image: "https://images.pexels.com/photos/5330050/pexels-photo-5330050.jpeg?auto=compress&cs=tinysrgb&w=800"
+  },
+  {
+    id: 2,
+    name: "Rose",
+    species: "Rosa",
+    type: "Flower",
+    health: "Needs Attention",
+    healthScore: 78,
+    nextWatering: "Tomorrow",
+    lastWatered: "3 days ago",
+    plantedDate: "10 Mar 2026",
+    waterAmount: "300 ml",
+    wateringReason: "Soil retains moisture well.",
+    image: "https://images.pexels.com/photos/1231622/pexels-photo-1231622.jpeg?auto=compress&cs=tinysrgb&w=800"
+  },
+  {
+    id: 3,
+    name: "Mint",
+    species: "Mentha",
+    type: "Herb",
+    health: "Healthy",
+    healthScore: 95,
+    nextWatering: "Tomorrow",
+    lastWatered: "Yesterday",
+    plantedDate: "05 Jan 2026",
+    waterAmount: "300 ml",
+    wateringReason: "Expected rainfall tomorrow.",
+    image: "https://images.pexels.com/photos/7750106/pexels-photo-7750106.jpeg?auto=compress&cs=tinysrgb&w=800"
+  },
+  {
+    id: 4,
+    name: "Basil",
+    species: "Ocimum basilicum",
+    type: "Herb",
+    health: "Healthy",
+    healthScore: 88,
+    nextWatering: "Today",
+    lastWatered: "2 days ago",
+    plantedDate: "20 Aug 2026",
+    waterAmount: "250 ml",
+    wateringReason: "High sun exposure today.",
+    image: "https://images.pexels.com/photos/10850731/pexels-photo-10850731.jpeg?auto=compress&cs=tinysrgb&w=800"
+  },
+  {
+    id: 5,
+    name: "Aloe Vera",
+    species: "Aloe barbadensis miller",
+    type: "Succulent",
+    health: "Healthy",
+    healthScore: 98,
+    nextWatering: "Next Week",
+    lastWatered: "1 week ago",
+    plantedDate: "01 Feb 2025",
+    waterAmount: "100 ml",
+    wateringReason: "Succulent requires infrequent watering.",
+    image: "https://images.pexels.com/photos/1084199/pexels-photo-1084199.jpeg?auto=compress&cs=tinysrgb&w=800"
+  }
+];
