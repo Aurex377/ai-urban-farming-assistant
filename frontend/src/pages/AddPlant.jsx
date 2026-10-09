@@ -53,15 +53,15 @@ export default function AddPlant() {
       const result = await createPlant(plantPayload);
       console.log('FastAPI create plant response:', result);
 
-      // On success: navigate back to My Plants page with toast notification
-      navigate('/plants', {
+      // On success: navigate directly to plant details page after creation
+      navigate(`/plants/${result.id}`, {
         state: {
           successMessage: '🌱 Plant added successfully!',
         },
       });
     } catch (err) {
       console.error('Error adding plant:', err);
-      setApiError('Unable to add plant. Please try again.');
+      setApiError(err.message || 'Unable to add plant. Please try again.');
     } finally {
       setLoading(false);
     }

@@ -1,243 +1,171 @@
-# AI Urban Farming Assistant - FastAPI Backend
+# GrowWise AI — AI Urban Farming Assistant
 
-Welcome to the backend for the **AI Urban Farming Assistant**! This backend connects directly to your existing Supabase project (PostgreSQL database and Supabase Storage) without modifying or recreating existing tables.
+Welcome to **GrowWise AI**, an intelligent urban farming assistant engineered for balcony and indoor gardeners.
 
 ---
 
-## 📁 Project Structure
+## 1. Project Overview & Architecture
 
+GrowWise AI bridges modern React UI design with a high-performance FastAPI backend, backed by Supabase PostgreSQL and private Supabase Object Storage.
+
+### Fixed Architectural Topology:
 ```text
-backend/
-│
-├── main.py                    # FastAPI app entrypoint, CORS & health routes
-├── database.py                # Supabase client connection loader
-├── requirements.txt           # Python dependencies
-├── .env.example               # Environment variables template
-├── .gitignore                 # Prevents committing .env and virtual environments
-│
-├── routes/                    # API Endpoints
-│   ├── __init__.py
-│   ├── users.py               # User profiles CRUD
-│   ├── plants.py              # Plants CRUD
-│   ├── images.py              # Leaf/plant image upload to Supabase Storage
-│   ├── diagnoses.py           # Plant disease diagnosis (ready for AI model)
-│   ├── care.py                # Care recommendations
-│   ├── watering.py            # Watering logs & recommendations
-│   ├── weather.py             # Weather observations
-│   └── activities.py          # Activity audit logs
-│
-├── schemas/                   # Pydantic Request & Response Models
-│   ├── __init__.py
-│   ├── users.py
-│   ├── plants.py
-│   ├── diagnoses.py
-│   ├── watering.py
-│   └── weather.py
-│
-└── services/                  # Business Logic Services
-    ├── __init__.py
-    ├── storage_service.py     # Image validation & upload to 'plant-images' bucket
-    └── ai_service.py          # Disease diagnosis AI integration hook
+React Frontend (Vite + Tailwind CSS + React Router)
+                ↓  HTTP (REST API)
+        FastAPI Backend (Port 8000)
+                ↓  Python Client (supabase-py)
+    Supabase PostgreSQL Database + Supabase Storage ('plant-images' bucket)
 ```
+
+### Full AI Pipeline Roadmap:
+1. **React Frontend** — Responsive Stitch UI with live telemetry & plant management.
+2. **FastAPI Backend** — Secure API gateway protecting database & storage credentials.
+3. **Local LLaVA Plant Disease 7B** — Local vision-language model for leaf disease detection (*Scheduled for Phase 2*).
+4. **FastAPI Context Aggregator** — Synthesizes diagnosis, plant telemetry, and weather data (*Scheduled for Phase 2*).
+5. **Weather API** — Local micro-climate telemetry (*Scheduled for Phase 2*).
+6. **Supabase PostgreSQL & Storage** — Relational database and private image storage.
+7. **Deterministic Watering Engine** — Algorithmic soil hydration & volume calculation (*Scheduled for Phase 2*).
+8. **Approved Treatment Guidance Database** — Curated agricultural intervention protocols (*Scheduled for Phase 2*).
+9. **NVIDIA Nemotron** — Expert synthesis & treatment validation (*Scheduled for Phase 2*).
+10. **Response Validation** — Guardrails ensuring safe recommendations (*Scheduled for Phase 2*).
+11. **Save Results** — Persistent audit trail in PostgreSQL.
+12. **React Dashboard** — Unified gardener overview.
 
 ---
 
-## 🪟 Windows Setup Instructions (Step-by-Step)
+## 2. Phase 1 Scope & Features Delivered
 
-Follow these step-by-step Windows commands in **PowerShell** or **Command Prompt**:
-
-### Step 1: Open PowerShell in the project directory
-Make sure your terminal is opened at the root folder:
-```powershell
-cd "c:\Users\Anant\Desktop\code carnival\backend"
-```
-
----
-
-### Step 2: Create a Python Virtual Environment
-Run:
-```powershell
-python -m venv venv
-```
-*(This creates an isolated `venv` folder with Python and pip).*
+- **Supabase Database Integration:** Resilient schema mapping supporting both baseline and additive schemas (`plants`, `plant_images`, `diagnoses`, `profiles`, `garden_zones`).
+- **Plant CRUD APIs:** Full lifecycle management (`GET /api/plants`, `POST /api/plants`, `GET /api/plants/{id}`, `PATCH /api/plants/{id}`, `DELETE /api/plants/{id}`).
+- **Plant Management UI:** Live garden dashboard metrics, plant registration, detailed plant view, editing, and deletion.
+- **Secure Image Upload:** Multipart upload to private Supabase Storage bucket `plant-images` with MIME validation (`JPEG`, `PNG`, `WEBP`), 10MB size limit, signed URL generation, and image deletion.
+- **Diagnosis Pipeline Hook:** Honest pending diagnosis preparation (`POST /api/plants/{plant_id}/diagnoses`) without simulated fake disease results, queued for Local LLaVA in Phase 2.
+- **Centralized Frontend Services:** Organized into `apiClient`, `plantService`, `imageService`, `diagnosisService`, and `healthService`.
 
 ---
 
-### Step 3: Activate the Virtual Environment on Windows
-In **PowerShell**, run:
-```powershell
-.\venv\Scripts\Activate.ps1
+## 3. Database & Storage Configuration
+
+### Database Tables (Supabase PostgreSQL):
+1. `profiles` — User profile details linked to auth.users.
+2. `garden_zones` — Micro-locations (balcony, windowsill, indoor) and sunlight exposure.
+3. `plants` — Core plant registry (species, type, variety, location, health status, watering dates).
+4. `plant_images` — Image metadata tracking photos stored in Supabase Storage.
+5. `diagnoses` — Plant health diagnosis records with status tracking (`pending`, `processing`, `completed`).
+6. `care_recommendations` — Prescribed treatment protocols and priority.
+7. `watering_logs` — Gardener watering event history.
+8. `watering_recommendations` — Algorithmic watering volume suggestions.
+9. `weather_records` — Environmental telemetry records.
+10. `activity_logs` — Comprehensive user audit trail.
+
+### Storage Bucket:
+- **Bucket Name:** `plant-images`
+- **Visibility:** Private (`public=False`)
+- **Access Protocol:** Authenticated upload via FastAPI backend; temporary signed URLs (3600 seconds) for frontend viewing.
+
+### Database Migration:
+To apply the additive Phase 1 schema extensions, run the non-destructive SQL script:
+```sql
+docs/supabase-phase1-migration.sql
 ```
-
-> **Note for PowerShell execution policy:** If you encounter a script execution error (`cannot be loaded because running scripts is disabled`), run this one command in PowerShell:
-> ```powershell
-> Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-> ```
-> And then re-run `.\venv\Scripts\Activate.ps1`.
-
-If you are using standard **Command Prompt (cmd.exe)** instead, run:
-```cmd
-venv\Scripts\activate.bat
-```
-
-Once activated, your terminal prompt will show `(venv)` at the beginning.
+*(The backend adapts automatically whether or not this script has already been run in your Supabase SQL editor).*
 
 ---
 
-### Step 4: Install Requirements
-Install all dependencies listed in `requirements.txt`:
-```powershell
-pip install -r requirements.txt
-```
+## 4. Environment Variables
 
----
-
-### Step 5: Create `.env` from `.env.example`
-Copy the `.env.example` file to create your real `.env` file:
-
-In **PowerShell**:
-```powershell
-Copy-Item .env.example .env
-```
-Or in **Command Prompt**:
-```cmd
-copy .env.example .env
-```
-
----
-
-### Step 6: Configure SUPABASE_URL and SUPABASE_KEY
-Open `backend/.env` in your text editor. It looks like this:
-
+### Backend (`backend/.env`):
 ```env
-# Supabase Connection Settings
-SUPABASE_URL=https://your-project-id.supabase.co
-SUPABASE_KEY=your-supabase-service-role-or-anon-key
+# Supabase Project Credentials
+SUPABASE_URL=https://<your-project-ref>.supabase.co
+SUPABASE_KEY=<your-supabase-key>
 
-# Frontend Application URL (for CORS)
+# Development User UUID
+DEV_USER_ID=27865d2c-302e-4a2d-83aa-c1c9ea7338a4
+
+# Allowed Frontend Origin
 FRONTEND_URL=http://localhost:5173
 ```
 
-1. **Where to find them in Supabase:**
-   - Go to your [Supabase Dashboard](https://app.supabase.com).
-   - Select your project.
-   - Click the **Project Settings** (gear icon) in the left sidebar.
-   - Click **API**.
-   - Copy the **Project URL** and paste it into `SUPABASE_URL`.
-   - Copy the `anon` / `public` API key (or `service_role` if using full admin bypass for storage) and paste it into `SUPABASE_KEY`.
-2. Save the file.
-3. ⚠️ **Security Notice:** Never commit your `.env` file to Git. It is already included in `.gitignore`.
+### Frontend (`frontend/.env`):
+```env
+VITE_API_BASE_URL=http://127.0.0.1:8000
+```
 
 ---
 
-### Step 7: Start the FastAPI Server
-Run Uvicorn with auto-reload:
+## 5. API Endpoints Reference
 
+### Health Checks:
+- `GET /health` — Service health status.
+- `GET /health/database` — Verified connectivity check to Supabase `plants` table.
+
+### Plants Management:
+- `GET /api/plants` — List all plants (optionally filtered by `?user_id=`).
+- `POST /api/plants` — Create a new plant.
+- `GET /api/plants/{plant_id}` — Get single plant detail.
+- `PATCH /api/plants/{plant_id}` — Update plant fields (name, variety, health status, notes).
+- `DELETE /api/plants/{plant_id}` — Delete plant and associated records.
+
+### Plant Images:
+- `POST /api/plants/{plant_id}/images` — Upload image file (JPEG, PNG, WEBP, max 10MB) to Supabase Storage.
+- `GET /api/plants/{plant_id}/images` — List images with temporary signed URLs.
+- `DELETE /api/plants/{plant_id}/images/{image_id}` — Delete image from Storage and database.
+
+### Diagnosis Pipeline:
+- `POST /api/plants/{plant_id}/diagnoses` — Queue image for diagnosis in `pending` state.
+- `GET /api/plants/{plant_id}/diagnoses` — List diagnosis history for a plant.
+- `GET /api/diagnoses/{diagnosis_id}` — Retrieve specific diagnosis details.
+
+---
+
+## 6. How to Run the Application
+
+### Running the Backend (FastAPI):
 ```powershell
-uvicorn main:app --reload
+cd "backend"
+.\venv\Scripts\Activate.ps1
+uvicorn backend.main:app --reload --port 8000
 ```
-You should see:
-```text
-INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
-INFO:     Started reloader process
-INFO:     Application startup complete.
+Swagger UI will be available at: `http://127.0.0.1:8000/docs`
+
+### Running the Frontend (React + Vite):
+```powershell
+cd "frontend"
+npm install
+npm run dev
 ```
+Application interface will be available at: `http://localhost:5173`
 
----
-
-### Step 8: Open Interactive Swagger Documentation
-Open your browser and navigate to:
-👉 **[http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)**
-
-You will see the complete interactive Swagger UI where you can view schemas and test every endpoint live.
-
-Alternatively, ReDoc is available at:
-👉 **[http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc)**
-
----
-
-### Step 9: Test the Health Endpoint
-In your browser or terminal, test the root and basic health endpoints:
-
-- **Browser:** Visit [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)
-- **PowerShell:**
-  ```powershell
-  curl http://127.0.0.1:8000/health
-  ```
-**Expected response:**
-```json
-{
-  "status": "healthy"
-}
+### Running Backend Tests:
+```powershell
+& "backend\venv\Scripts\python.exe" -c "
+from backend.tests.test_phase1 import (
+    test_health_endpoint,
+    test_database_health_endpoint,
+    test_create_plant_invalid_payload,
+    test_plant_crud_lifecycle,
+    test_reject_unauthorized_plant_access
+)
+test_health_endpoint()
+test_database_health_endpoint()
+test_create_plant_invalid_payload()
+test_plant_crud_lifecycle()
+test_reject_unauthorized_plant_access()
+print('All Phase 1 tests passed!')
+"
 ```
 
 ---
 
-### Step 10: Test Database Connectivity
-Once your `SUPABASE_URL` and `SUPABASE_KEY` are entered into `backend/.env`:
+## 7. Current Limitations & Next Phase (Phase 2)
 
-- **Browser:** Visit [http://127.0.0.1:8000/health/database](http://127.0.0.1:8000/health/database)
-- **PowerShell:**
-  ```powershell
-  curl http://127.0.0.1:8000/health/database
-  ```
+### Current Limitations (By Design for Phase 1):
+- Disease diagnoses remain in `pending` status with `0.0` confidence and honest explanation until the Local LLaVA vision model is plugged in.
+- Weather observations and watering calculations currently operate on schema-ready data without live third-party sensors.
 
-**Expected response when connected:**
-```json
-{
-  "status": "connected",
-  "database": "Supabase reachable",
-  "table_checked": "plants"
-}
-```
-
-If credentials are not yet configured or incorrect, it will return:
-```json
-{
-  "status": "disconnected",
-  "database": "Supabase unreachable",
-  "message": "Unable to reach Supabase. Please verify SUPABASE_URL and SUPABASE_KEY in your backend/.env file."
-}
-```
-
----
-
-## 🌿 Available Endpoints Summary
-
-### Health
-- `GET /` - Root status
-- `GET /health` - Application health
-- `GET /health/database` - Test connection to Supabase `plants` table
-
-### Plants
-- `POST /api/plants` - Create plant
-- `GET /api/plants/{user_id}` - Get all plants for a user UUID
-- `GET /api/plants/detail/{plant_id}` - Get single plant details
-- `PUT /api/plants/{plant_id}` - Update plant details
-- `DELETE /api/plants/{plant_id}` - Delete plant
-
-### Images & Supabase Storage
-- `POST /api/plants/{plant_id}/images` - Upload image (jpg/png/webp up to 10MB) to Supabase Storage bucket `plant-images` and store record in `plant_images` table
-- `GET /api/plants/{plant_id}/images` - List all uploaded images for a plant
-
-### AI Diagnosis
-- `POST /api/diagnosis/{plant_id}` - Request diagnosis for uploaded image (uses `services/ai_service.py` architecture hook)
-- `GET /api/diagnosis/plant/{plant_id}` - Get diagnosis history for a plant
-
-### Care Recommendations
-- `POST /api/care/{plant_id}` - Add care recommendation
-- `GET /api/care/{plant_id}` - List care recommendations for a plant
-
-### Watering
-- `POST /api/watering/{plant_id}/log` - Record watering log
-- `GET /api/watering/{plant_id}/logs` - Get watering history
-- `POST /api/watering/{plant_id}/recommendation` - Add watering recommendation
-- `GET /api/watering/{plant_id}/recommendations` - Get watering recommendations
-
-### Weather
-- `POST /api/weather` - Save weather observation
-- `GET /api/weather/{plant_id}` - Get weather observations for a plant
-
-### Activities
-- `POST /api/activities` - Record activity
-- `GET /api/activities/{user_id}` - List user activity history
+### Phase 2 Implementation Plan:
+1. **Local LLaVA Plant Disease 7B Integration:** Connect PyTorch/HuggingFace or local GGUF/Ollama inference server to process leaf image tensors.
+2. **Deterministic Watering Engine:** Implement soil volume hydration math adjusted by temperature and humidity.
+3. **External Weather API Integration:** Hook real OpenWeatherMap / Open-Meteo telemetry into `weather_records`.
+4. **NVIDIA Nemotron & Guardrails:** Connect treatment guidance synthesis with strict agricultural safety validation.

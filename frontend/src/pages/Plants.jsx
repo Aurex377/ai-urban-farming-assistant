@@ -54,7 +54,8 @@ export default function Plants() {
 
   const filteredPlants = plants.filter((plant) => {
     const q = searchQuery.toLowerCase();
-    const nameMatch = plant.plant_name?.toLowerCase().includes(q);
+    const nameStr = plant.name || plant.plant_name || '';
+    const nameMatch = nameStr.toLowerCase().includes(q);
     const speciesMatch = plant.species?.toLowerCase().includes(q);
     const typeMatch = plant.plant_type?.toLowerCase().includes(q);
     return nameMatch || speciesMatch || typeMatch;
@@ -201,7 +202,7 @@ export default function Plants() {
                 <div className="p-5 flex-1 flex flex-col">
                   <div className="flex justify-between items-start mb-1">
                     <h3 className="text-xl font-bold text-gray-900 group-hover:text-primary transition-colors">
-                      {plant.plant_name}
+                      {plant.name || plant.plant_name}
                     </h3>
                     {plant.plant_type && (
                       <span className="text-xs font-medium text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100">

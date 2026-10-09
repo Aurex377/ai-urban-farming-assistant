@@ -154,7 +154,7 @@ app.include_router(activities_router)
 def get_plants_alias(supabase=Depends(get_supabase)):
     """Convenience alias for /api/plants to support direct /plants queries."""
     try:
-        from backend.routes.plants import get_user_plants
+        from backend.routes.plants import get_plants
     except ImportError:
-        from routes.plants import get_user_plants
-    return get_user_plants(user_id=None, supabase=supabase)
+        from routes.plants import get_plants
+    return get_plants(user_id=None, supabase=supabase)

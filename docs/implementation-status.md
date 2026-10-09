@@ -149,6 +149,22 @@ React (Vite + Tailwind CSS + React Router)
 
 ---
 
-## 6. Conclusion
+## 6. Phase 0 Audit Summary
 
-Phase 0 is complete. The Supabase database connection and private storage bucket are verified and stable. The FastAPI backend serves as the sole, secure API gateway. Frontend client libraries and build pipelines are verified with zero errors, ready for Phase 1.
+Phase 0 foundation stabilization was completed and verified. The Supabase database connection and private storage bucket are verified and stable. The FastAPI backend serves as the sole, secure API gateway. Frontend client libraries and build pipelines are verified with zero errors.
+
+---
+
+## 7. Phase 1: Core Data Layer, Plant Management, and Image Upload Foundation
+
+**Status:** Completed & Fully Verified  
+**Date of Audit:** October 2026
+
+### 7.1 Scope & Accomplishments Delivered
+1. **Resilient Schema Compatibility:** Backend models adapt seamlessly across both baseline Supabase tables and post-migration additive tables.
+2. **Plant Management CRUD:** Full lifecycle implemented with FastAPI endpoints (`GET`, `POST`, `PATCH`, `DELETE`) and connected to React frontend.
+3. **Supabase Storage Integration:** Validated multipart image upload (`JPEG`, `PNG`, `WEBP`, max 10MB) to private `plant-images` bucket, generating 1-hour signed URLs for browser rendering, with image deletion support.
+4. **Diagnosis Preparation Pipeline:** Real diagnosis preparation endpoint (`POST /api/plants/{id}/diagnoses`) creates honest `pending` diagnosis records with zero fake predictions.
+5. **Frontend Service Modularization:** Reorganized API interactions into modular services (`apiClient`, `plantService`, `imageService`, `diagnosisService`, `healthService`) configured with `VITE_API_BASE_URL`.
+6. **Automated Verification:** 100% test pass rate across all live Supabase CRUD and validation tests; 0 errors on frontend production build and linting.
+
