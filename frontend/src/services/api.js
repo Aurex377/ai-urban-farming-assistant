@@ -47,6 +47,8 @@ export {
   getPersonalizedCare,
   generatePersonalizedCare,
   getNemotronStatus,
+  askPlantCoach,
+  getPlantKnowledgeTransfer,
 } from './careService';
 
 // Watering Engine & Logs (Phase 3)

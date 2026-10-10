@@ -6,6 +6,7 @@ import {
   getPersonalizedCare,
   generatePersonalizedCare,
 } from '../services/api';
+import PlantCoachKnowledgeTransfer from '../components/PlantCoachKnowledgeTransfer';
 import {
   ShieldAlert,
   CheckCircle2,
@@ -121,6 +122,7 @@ export default function Care() {
 
   // Filter categories
   const categories = ['All', ...new Set(protocols.map((p) => p.category).filter(Boolean))];
+  const selectedPlant = plants.find((p) => String(p.id) === String(selectedPlantId));
 
   const filteredProtocols = activeCategory === 'All'
     ? protocols
@@ -272,6 +274,16 @@ export default function Care() {
           </div>
         )}
       </section>
+
+      {/* 👑 Plant Coach + Knowledge Transfer System */}
+      {selectedPlantId && (
+        <PlantCoachKnowledgeTransfer
+          plantId={selectedPlantId}
+          plantName={selectedPlant?.name || selectedPlant?.plant_name}
+          species={selectedPlant?.species}
+          diseaseName={personalizedCare?.active_diagnosis}
+        />
+      )}
 
       {/* Protocol Knowledge Base Section */}
       <div className="mb-6">

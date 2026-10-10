@@ -43,6 +43,7 @@ import {
   generatePersonalizedCare,
 } from '../services/api';
 import PlantHealthTimeline from '../components/PlantHealthTimeline';
+import PlantCoachKnowledgeTransfer from '../components/PlantCoachKnowledgeTransfer';
 
 export default function PlantDetails() {
   const { id } = useParams();
@@ -1417,6 +1418,14 @@ export default function PlantDetails() {
           </div>
         )}
       </section>
+
+      {/* 👑 Plant Coach + Knowledge Transfer System */}
+      <PlantCoachKnowledgeTransfer
+        plantId={id}
+        plantName={plantDisplayName}
+        species={plant?.species}
+        diseaseName={activeDiagnosis?.disease_name}
+      />
 
       {/* Synthesized 10-Dimension Decision Context Inspector (Phase 4 Ready) */}
       {contextData && (

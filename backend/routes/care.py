@@ -17,11 +17,18 @@ try:
         generate_personalized_guidance,
         check_nvidia_availability,
     )
+    from backend.services.plant_coach_service import (
+        ask_plant_coach,
+        get_plant_knowledge_transfer,
+    )
     from backend.schemas.diagnoses import (
         CareRecommendationCreate,
         CareRecommendationResponse,
         PersonalizedCareGuidanceResponse,
         NVIDIAStatusResponse,
+        PlantCoachChatRequest,
+        PlantCoachChatResponse,
+        PlantKnowledgeTransferResponse,
     )
 except ImportError:
     from database import get_supabase
@@ -31,11 +38,18 @@ except ImportError:
         generate_personalized_guidance,
         check_nvidia_availability,
     )
+    from services.plant_coach_service import (
+        ask_plant_coach,
+        get_plant_knowledge_transfer,
+    )
     from schemas.diagnoses import (
         CareRecommendationCreate,
         CareRecommendationResponse,
         PersonalizedCareGuidanceResponse,
         NVIDIAStatusResponse,
+        PlantCoachChatRequest,
+        PlantCoachChatResponse,
+        PlantKnowledgeTransferResponse,
     )
 
 router = APIRouter(prefix="/api/care", tags=["Care Recommendations"])
@@ -267,6 +281,72 @@ async def get_latest_personalized_care(
         status_code=status.HTTP_404_NOT_FOUND,
         detail=f"No personalized care recommendations found for plant {plant_id}."
     )
+
+
+# ====================================================================
+# Plant Coach & Knowledge Transfer Endpoints
+# ====================================================================
+
+@router.post("/{plant_id}/coach/chat", response_model=PlantCoachChatResponse, summary="Chat with Plant Coach about a specific plant")
+async def chat_with_plant_coach(
+    plant_id: int,
+    payload: PlantCoachChatRequest,
+    supabase: Client = Depends(get_supabase)
+):
+    """
+    Conversational AI Plant Coach grounded in the plant's live 10-dimension agronomic context.
+    Provides conversational answers, core scientific knowledge takeaway, and actionable steps today.
+    """
+    try:
+        plant_check = supabase.table("plants").select("id").eq("id", plant_id).execute()
+        if not plant_check.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Plant with ID {plant_id} does not exist."
+            )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error validating plant: {str(exc)}"
+        )
+
+    res = await ask_plant_coach(
+        plant_id=plant_id,
+        message=payload.message,
+        history=payload.history or [],
+        supabase=supabase
+    )
+    return res
+
+
+@router.get("/{plant_id}/knowledge-transfer", response_model=PlantKnowledgeTransferResponse, summary="Get structured agronomic knowledge transfer modules")
+async def get_plant_knowledge_modules(
+    plant_id: int,
+    supabase: Client = Depends(get_supabase)
+):
+    """
+    Retrieves 5 structured agronomic knowledge transfer modules tailored to the plant's
+    species, pathology, root volume, and urban microclimate.
+    """
+    try:
+        plant_check = supabase.table("plants").select("id").eq("id", plant_id).execute()
+        if not plant_check.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Plant with ID {plant_id} does not exist."
+            )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error validating plant: {str(exc)}"
+        )
+
+    res = await get_plant_knowledge_transfer(plant_id=plant_id, supabase=supabase)
+    return res
 
 
 # ====================================================================

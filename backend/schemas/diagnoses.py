@@ -94,3 +94,40 @@ class PersonalizedCareGuidanceResponse(BaseModel):
     engine: Optional[str] = None
     generated_at: Optional[str] = None
     care_recommendation_id: Optional[int] = None
+
+
+class PlantCoachChatRequest(BaseModel):
+    message: str
+    history: Optional[List[Dict[str, str]]] = None
+
+
+class PlantCoachChatResponse(BaseModel):
+    reply: str
+    knowledge_takeaway: str
+    actionable_step: str
+    suggested_follow_ups: List[str]
+    engine_used: str
+    timestamp: str
+
+
+class KnowledgeTransferModule(BaseModel):
+    id: str
+    title: str
+    category: str
+    icon: str
+    summary: str
+    key_principles: List[str]
+    practical_action: str
+    botanical_science_note: str
+
+
+class PlantKnowledgeTransferResponse(BaseModel):
+    plant_id: int
+    plant_name: str
+    species: str
+    active_diagnosis: str
+    is_healthy: bool
+    severity: str
+    modules: List[KnowledgeTransferModule]
+    generated_at: str
+

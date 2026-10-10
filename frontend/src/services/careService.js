@@ -60,3 +60,25 @@ export async function generatePersonalizedCare(plantId) {
 export async function getNemotronStatus() {
   return await apiRequest('/api/care/model/status');
 }
+
+/**
+ * 👑 Plant Coach: Chat interactively with the AI Plant Coach grounded in plant context
+ * @param {string|number} plantId
+ * @param {string} message
+ * @param {Array} history
+ */
+export async function askPlantCoach(plantId, message, history = []) {
+  return await apiRequest(`/api/care/${plantId}/coach/chat`, {
+    method: 'POST',
+    body: JSON.stringify({ message, history }),
+  });
+}
+
+/**
+ * 👑 Knowledge Transfer: Retrieve 5 structured agronomic masterclass modules for a plant
+ * @param {string|number} plantId
+ */
+export async function getPlantKnowledgeTransfer(plantId) {
+  return await apiRequest(`/api/care/${plantId}/knowledge-transfer`);
+}
+
