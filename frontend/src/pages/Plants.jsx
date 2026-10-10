@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Plus, Search, Calendar, RefreshCw, AlertCircle, Leaf, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Plus, Search, Calendar, RefreshCw, AlertCircle, Leaf, ArrowRight, CheckCircle2, Sparkles } from 'lucide-react';
 import { getPlants } from '../services/api';
 
 export default function Plants() {
@@ -79,13 +79,22 @@ export default function Plants() {
           <p className="text-gray-600">Manage and monitor all your plants in one place.</p>
         </div>
 
-        <Link
-          to="/plants/add"
-          className="bg-primary text-white px-5 py-2.5 rounded-full font-medium flex items-center gap-2 hover:bg-primary-dark transition-colors shadow-sm whitespace-nowrap"
-        >
-          <Plus className="w-5 h-5" />
-          Add Plant
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link
+            to="/recommendations"
+            className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-4 py-2.5 rounded-full font-medium flex items-center gap-2 hover:bg-emerald-100 transition-colors shadow-xs whitespace-nowrap text-xs"
+          >
+            <Sparkles className="w-4 h-4 text-emerald-600" />
+            👑 Best Plant for Your Home
+          </Link>
+          <Link
+            to="/plants/add"
+            className="bg-primary text-white px-5 py-2.5 rounded-full font-medium flex items-center gap-2 hover:bg-primary-dark transition-colors shadow-sm whitespace-nowrap text-xs"
+          >
+            <Plus className="w-4 h-4" />
+            Add Plant
+          </Link>
+        </div>
       </div>
 
       {/* Success Toast Notification */}

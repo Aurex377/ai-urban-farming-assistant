@@ -98,3 +98,16 @@ export {
   getPlantEarlyWarnings,
 } from './warningService';
 
+// Plant Recommendations & Discovery ("Best Plant for Your Home")
+export {
+  discoverPlants,
+  getBotanicalCatalog,
+  getCatalogPlantDetail,
+  comparePlants,
+  saveDiscoveryPreferences,
+  getSavedDiscoveryPreferences,
+  addFavoritePlant,
+  removeFavoritePlant,
+  getFavoritePlants,
+} from './recommendationService';
+

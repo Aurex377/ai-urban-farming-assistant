@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import {
   getCareProtocols,
   getPlants,
@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 
 export default function Care() {
+  const location = useLocation();
   const [protocols, setProtocols] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -35,7 +36,7 @@ export default function Care() {
 
   // Phase 4: Plant-specific Personalized Care Assistant
   const [plants, setPlants] = useState([]);
-  const [selectedPlantId, setSelectedPlantId] = useState('');
+  const [selectedPlantId, setSelectedPlantId] = useState(location.state?.plantId || '');
   const [personalizedCare, setPersonalizedCare] = useState(null);
   const [personalizingLoading, setPersonalizingLoading] = useState(false);
   const [personalizingError, setPersonalizingError] = useState(null);
@@ -57,7 +58,10 @@ export default function Care() {
         if (plantsData.status === 'fulfilled') {
           const plantList = Array.isArray(plantsData.value) ? plantsData.value : [];
           setPlants(plantList);
-          if (plantList.length > 0) {
+          const navPlantId = location.state?.plantId;
+          if (navPlantId && plantList.some((p) => String(p.id) === String(navPlantId))) {
+            setSelectedPlantId(navPlantId);
+          } else if (plantList.length > 0 && !selectedPlantId) {
             setSelectedPlantId(plantList[0].id);
           }
         }

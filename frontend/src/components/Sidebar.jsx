@@ -1,11 +1,12 @@
 import { NavLink } from 'react-router-dom';
-import { Home, Leaf, Activity, Droplets, Heart, CloudSun, Clock, Settings } from 'lucide-react';
+import { Home, Leaf, Activity, Droplets, Heart, CloudSun, Clock, Settings, Sparkles } from 'lucide-react';
 
 import NotificationCenter from './NotificationCenter';
 
 export default function Sidebar() {
   const navItems = [
     { name: 'Dashboard', path: '/dashboard', icon: Home },
+    { name: '👑 Best Plant for Home', path: '/recommendations', icon: Sparkles },
     { name: 'My Plants', path: '/plants', icon: Leaf },
     { name: 'Plant Health', path: '/diagnosis', icon: Activity },
     { name: 'Watering', path: '/watering', icon: Droplets },

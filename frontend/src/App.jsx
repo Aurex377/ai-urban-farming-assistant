@@ -10,6 +10,7 @@ import Watering from './pages/Watering';
 import Care from './pages/Care';
 import Weather from './pages/Weather';
 import Activity from './pages/Activity';
+import Recommendations from './pages/Recommendations';
 
 function App() {
   return (
@@ -18,6 +19,7 @@ function App() {
         <Route path="/" element={<Landing />} />
         <Route path="/" element={<Layout />}>
           <Route path="dashboard" element={<Dashboard />} />
+          <Route path="recommendations" element={<Recommendations />} />
           <Route path="plants" element={<Plants />} />
           <Route path="plants/add" element={<AddPlant />} />
           <Route path="plants/:id" element={<PlantDetails />} />

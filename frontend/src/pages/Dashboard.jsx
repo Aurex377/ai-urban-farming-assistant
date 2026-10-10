@@ -13,6 +13,7 @@ import {
   Clock,
   ShieldCheck,
   TrendingUp,
+  Sparkles,
 } from 'lucide-react';
 import BackendStatus from '../components/BackendStatus';
 import {
@@ -94,6 +95,30 @@ export default function Dashboard() {
 
       {/* Backend & Database Connection Test Status */}
       <BackendStatus />
+
+      {/* 👑 Best Plant for Your Home Recommendation Discovery Banner */}
+      <div className="mb-8 p-6 bg-gradient-to-r from-emerald-900 via-teal-900 to-green-950 text-white rounded-3xl shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden">
+        <div className="relative z-10 max-w-xl">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="p-1 px-2.5 rounded-full bg-white/20 text-white text-xs font-bold flex items-center gap-1 backdrop-blur-xs">
+              👑 Personalized Discovery
+            </span>
+            <span className="text-emerald-200 text-xs">• Microclimate & Sunlight Aware</span>
+          </div>
+          <h2 className="text-xl md:text-2xl font-bold tracking-tight mb-1">
+            Best Plant for Your Home
+          </h2>
+          <p className="text-emerald-100 text-xs md:text-sm leading-relaxed">
+            Discover resilient botanical species matching your balcony sunlight, living space, maintenance routine, and local climate.
+          </p>
+        </div>
+        <Link
+          to="/recommendations"
+          className="relative z-10 shrink-0 px-6 py-3 bg-white text-emerald-950 font-bold text-xs rounded-2xl hover:bg-emerald-50 transition-all flex items-center gap-2 shadow-sm"
+        >
+          <Sparkles className="w-4 h-4 text-emerald-700" /> Find My Perfect Plant <ArrowRight className="w-4 h-4" />
+        </Link>
+      </div>
 
       {/* Backend / Network Error State */}
       {error && (

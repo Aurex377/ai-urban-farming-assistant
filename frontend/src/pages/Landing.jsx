@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Leaf, Activity, Droplets, CloudSun } from 'lucide-react';
+import { Leaf, Activity, Droplets, CloudSun, Sparkles } from 'lucide-react';
 
 export default function Landing() {
   return (
@@ -52,7 +52,12 @@ export default function Landing() {
 
         <section id="features" className="py-24">
           <h2 className="text-3xl font-bold text-center mb-16">How we help your garden thrive</h2>
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <FeatureCard 
+              icon={Sparkles} 
+              title="👑 Best Plant for Your Home" 
+              description="Personalized, climate-aware plant recommendations based on your sunlight, space, routine, and pets."
+            />
             <FeatureCard 
               icon={Activity} 
               title="AI Plant Diagnosis" 
@@ -65,13 +70,13 @@ export default function Landing() {
             />
             <FeatureCard 
               icon={Leaf} 
-              title="Plant Care" 
-              description="Simple, actionable recommendations for keeping your plants healthy."
+              title="Plant Care Protocols" 
+              description="Simple, actionable guidance and clinical protocols for keeping your plants thriving."
             />
             <FeatureCard 
               icon={CloudSun} 
-              title="Weather-Aware" 
-              description="Uses local weather conditions to improve watering and care insights."
+              title="Weather-Aware Telemetry" 
+              description="Uses local Indian and regional weather conditions to adapt care schedules."
             />
           </div>
         </section>

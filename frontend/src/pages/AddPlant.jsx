@@ -1,17 +1,20 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Upload, X, Leaf, Calendar, AlertCircle, RefreshCw } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { Upload, X, Leaf, Calendar, AlertCircle, RefreshCw, Sparkles } from 'lucide-react';
 import { createPlant } from '../services/api';
 
 export default function AddPlant() {
   const navigate = useNavigate();
+  const location = useLocation();
 
-  // Form field state
-  const [plantName, setPlantName] = useState('');
-  const [species, setSpecies] = useState('');
-  const [plantType, setPlantType] = useState('Vegetable');
-  const [plantedDate, setPlantedDate] = useState('');
-  const [imagePreview, setImagePreview] = useState(null);
+  // Form field state (supports pre-fill from Plant Recommendations & Start Growing)
+  const [plantName, setPlantName] = useState(location.state?.plantName || '');
+  const [species, setSpecies] = useState(location.state?.species || '');
+  const [plantType, setPlantType] = useState(location.state?.plantType || 'Vegetable');
+  const [plantedDate, setPlantedDate] = useState(
+    location.state?.plantedDate || new Date().toISOString().split('T')[0]
+  );
+  const [imagePreview, setImagePreview] = useState(location.state?.imageUrl || null);
 
   // UX & Validation state
   const [validationError, setValidationError] = useState('');
