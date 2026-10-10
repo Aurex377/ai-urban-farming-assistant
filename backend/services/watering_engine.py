@@ -122,8 +122,9 @@ def calculate_watering_recommendation(
     weather_based = False
 
     current_weather = (weather_data or {}).get("current", {})
-    temp = float(current_weather.get("temperature", 24.0))
-    humidity = float(current_weather.get("humidity", 60.0))
+    weather_available = (weather_data or {}).get("available", True) and (weather_data or {}).get("is_available", True) and current_weather.get("source") != "unavailable"
+    temp = float(current_weather.get("temperature", 24.0)) if current_weather.get("temperature") is not None else 24.0
+    humidity = float(current_weather.get("humidity", 60.0)) if current_weather.get("humidity") is not None else 60.0
     recent_rainfall = float(current_weather.get("rainfall_mm") if current_weather.get("rainfall_mm") is not None else current_weather.get("rainfall", 0.0))
 
     forecast_days = (weather_data or {}).get("forecast", [])
@@ -133,25 +134,29 @@ def calculate_watering_recommendation(
         rain_tomorrow = next_day_rain >= 3.0 or int(forecast_days[1].get("rain_chance", 0)) >= 65
 
     if not is_indoor:
-        weather_based = True
-        # Temperature effect
-        if temp >= 32.0:
-            weather_multiplier *= 1.35
-            weather_notes.append(f"High heat ({temp}°C) accelerates soil evapotranspiration (+35%).")
-        elif temp >= 28.0:
-            weather_multiplier *= 1.15
-            weather_notes.append(f"Warm conditions ({temp}°C) increase plant water demand (+15%).")
-        elif temp <= 16.0:
-            weather_multiplier *= 0.75
-            weather_notes.append(f"Cool temperature ({temp}°C) lowers plant uptake (-25%).")
+        if weather_available:
+            weather_based = True
+            # Temperature effect
+            if temp >= 32.0:
+                weather_multiplier *= 1.35
+                weather_notes.append(f"High heat ({temp}°C) accelerates soil evapotranspiration (+35%).")
+            elif temp >= 28.0:
+                weather_multiplier *= 1.15
+                weather_notes.append(f"Warm conditions ({temp}°C) increase plant water demand (+15%).")
+            elif temp <= 16.0:
+                weather_multiplier *= 0.75
+                weather_notes.append(f"Cool temperature ({temp}°C) lowers plant uptake (-25%).")
 
-        # Humidity effect
-        if humidity <= 35.0:
-            weather_multiplier *= 1.15
-            weather_notes.append(f"Dry ambient air ({humidity}% RH) increases leaf transpiration (+15%).")
-        elif humidity >= 80.0:
-            weather_multiplier *= 0.85
-            weather_notes.append(f"High atmospheric humidity ({humidity}% RH) slows evaporation (-15%).")
+            # Humidity effect
+            if humidity <= 35.0:
+                weather_multiplier *= 1.15
+                weather_notes.append(f"Dry ambient air ({humidity}% RH) increases leaf transpiration (+15%).")
+            elif humidity >= 80.0:
+                weather_multiplier *= 0.85
+                weather_notes.append(f"High atmospheric humidity ({humidity}% RH) slows evaporation (-15%).")
+        else:
+            weather_based = False
+            weather_notes.append("Hyperlocal weather telemetry is currently unavailable; calculated using calibrated species baseline without microclimate multiplier.")
 
     # 4. Disease / Pathology Throttle
     disease_multiplier = 1.0
@@ -169,10 +174,13 @@ def calculate_watering_recommendation(
             elif "blight" in d_lower or "mildew" in d_lower or "spot" in d_lower:
                 disease_multiplier = 0.85
                 weather_notes.append(f"Foliar pathogen active ({disease_name}): reduce canopy moisture; bottom-water only.")
+    elif latest_diagnosis and latest_diagnosis.get("status") in ("uncertain", "inconclusive"):
+        weather_notes.append("Diagnosis is unconfirmed/inconclusive: maintaining standard watering without pathogen volume suppression.")
 
     # 5. Elapsed Time Since Last Watered
     last_watered = last_watered_at_str or plant.get("last_watered_at")
     days_since_watered = 1
+    clean_last = None
     if last_watered:
         try:
             clean_last = str(last_watered).split("T")[0]
@@ -191,13 +199,20 @@ def calculate_watering_recommendation(
     needs_water_today = False
     skip_reason = None
 
-    if not is_indoor and recent_rainfall >= 5.0:
+    if clean_last and days_since_watered == 0:
+        # Already watered today!
+        needs_water_today = False
+        urgency = "satisfied"
+        days_until = max(1, ideal_interval)
+        recommended_date = str(now_iso + timedelta(days=days_until))
+        skip_reason = f"Hydration intake satisfied today ({clean_last}). Next scheduled watering on {recommended_date}."
+    elif not is_indoor and recent_rainfall >= 5.0 and weather_available:
         recommended_ml = 0.0
         needs_water_today = False
         skip_reason = f"Recent natural rainfall ({recent_rainfall} mm) thoroughly hydrated the root zone."
         recommended_date = str(now_iso + timedelta(days=2))
         urgency = "skip"
-    elif not is_indoor and rain_tomorrow and plant_type != "seedling":
+    elif not is_indoor and rain_tomorrow and plant_type != "seedling" and weather_available:
         recommended_ml = round(recommended_ml * 0.4 / 10.0) * 10.0
         needs_water_today = False
         skip_reason = "Substantial rainfall forecasted within 24 hours. Pre-watering reduced to prevent waterlogging."
@@ -219,7 +234,10 @@ def calculate_watering_recommendation(
         reasons.append(f"Indoor {plant_type.capitalize()} in {stage} stage with {sunlight.replace('_', ' ')} exposure.")
     else:
         reasons.append(f"Outdoor {plant_type.capitalize()} ({stage} stage, {sunlight.replace('_', ' ')}).")
-        reasons.append(f"Ambient weather: {temp}°C, {humidity}% humidity.")
+        if weather_available:
+            reasons.append(f"Ambient weather: {temp}°C, {humidity}% humidity.")
+        else:
+            reasons.append("Ambient weather: Telemetry unavailable.")
 
     if weather_notes:
         reasons.extend(weather_notes)

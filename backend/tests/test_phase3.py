@@ -349,6 +349,55 @@ def test_api_watering_schedule_all():
     assert "today_volume_ml" in data
 
 
+def test_care_guidance_uncertain_diagnosis():
+    """Verify that uncertain/inconclusive diagnosis produces non-chemical monitoring protocol."""
+    uncertain_guidance = get_approved_care_guidance(
+        disease_name="Uncertain Lesion",
+        is_healthy=False,
+        diagnosis_status="uncertain",
+        confidence=0.35
+    )
+    assert uncertain_guidance["is_uncertain"] is True
+    assert uncertain_guidance["urgency"] == "monitor"
+    assert "chemical" in str(uncertain_guidance["prohibited_actions"]).lower() or "fungicides" in str(uncertain_guidance["prohibited_actions"]).lower()
+
+
+def test_care_guidance_unknown_disease():
+    """Verify that unsupported conditions do not force into leaf spot and include limitation note."""
+    unknown_guidance = get_approved_care_guidance(
+        disease_name="Unknown Mosaic Anomaly",
+        is_healthy=False,
+        confidence=0.9
+    )
+    assert "Unverified Condition" in unknown_guidance["condition_name"]
+    assert "limitations_note" in unknown_guidance
+    assert unknown_guidance["is_uncertain"] is True
+
+
+def test_watering_when_watered_today():
+    """Verify that a plant watered today has urgency=satisfied and next interval scheduled."""
+    today_iso = datetime.now(timezone.utc).date().isoformat()
+    plant = {"plant_type": "vegetable", "location": "outdoor", "planted_date": "2026-08-01"}
+    rec = calculate_watering_recommendation(plant, weather_data=None, last_watered_at_str=today_iso)
+    assert rec["needs_water_today"] is False
+    assert rec["urgency"] == "satisfied"
+    assert "satisfied today" in rec["reason"].lower()
+
+
+def test_watering_when_weather_unavailable():
+    """Verify that when weather is offline/unavailable, species baseline is applied without error."""
+    plant = {"plant_type": "vegetable", "location": "outdoor", "planted_date": "2026-08-01"}
+    offline_weather = {
+        "available": False,
+        "is_available": False,
+        "current": {"source": "unavailable", "temperature": None}
+    }
+    rec = calculate_watering_recommendation(plant, weather_data=offline_weather)
+    assert rec["weather_based"] is False
+    assert "unavailable" in rec["reason"].lower()
+    assert rec["recommended_amount_ml"] > 0
+
+
 if __name__ == "__main__":
     tests = [
         test_watering_baseline_and_stage_multipliers,

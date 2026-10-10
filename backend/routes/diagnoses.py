@@ -240,14 +240,28 @@ async def execute_diagnosis_inference(diagnosis_id: int, supabase: Client) -> No
                 if download_res.status_code == 200:
                     image_bytes = download_res.content
 
-        if not image_bytes:
-            raise Exception(f"Unable to retrieve file bytes from storage for image #{image_id}.")
+        analysis_result = None
+        # Model 1: Try Local LLaVA (YuchengShi/LLaVA-v1.5-7B-Plant-Leaf-Diseases-Detection) if online
+        try:
+            llava_status = await check_llava_availability()
+            if llava_status.get("available") and llava_status.get("model_loaded"):
+                llava_res = await analyze_leaf_with_llava(
+                    image_bytes=image_bytes,
+                    plant_name=plant_name,
+                    species=species
+                )
+                if llava_res.get("status") in ("completed", "inconclusive", "uncertain"):
+                    analysis_result = llava_res
+        except Exception as llava_err:
+            logger.info(f"Local LLaVA inference check skipped: {llava_err}")
 
-        analysis_result = await analyze_leaf_with_nvidia(
-            image_bytes=image_bytes,
-            plant_name=plant_name,
-            species=species
-        )
+        # Model 2 / Multimodal fallback: NVIDIA NIM Multimodal Vision API
+        if not analysis_result:
+            analysis_result = await analyze_leaf_with_nvidia(
+                image_bytes=image_bytes,
+                plant_name=plant_name,
+                species=species
+            )
 
         # Cache rich multimodal result for immediate frontend rendering
         _DIAGNOSIS_CACHE[diagnosis_id] = analysis_result

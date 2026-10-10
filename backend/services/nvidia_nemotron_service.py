@@ -258,10 +258,20 @@ def build_personalization_prompts(context_data: Dict[str, Any]) -> Tuple[str, st
         "into compassionate, scientifically accurate, and actionable personalized plant care guidance.\n\n"
         "STRICT AGRONOMIC GUIDELINES:\n"
         "1. Never recommend synthetic chemicals or prohibited actions listed in the clinical protocol.\n"
-        "2. Strictly align your watering explanation with the deterministic engine's target volume and schedule.\n"
-        "3. Provide precise, tailored advice considering plant age, growth stage, soil volume, and current weather.\n"
-        "4. Output MUST be ONLY a single valid JSON object matching the requested schema without markdown backticks."
+        "2. Strictly reinforce the deterministic engine's exact numerical watering target and schedule. DO NOT invent conflicting numbers.\n"
+        "3. If diagnosis is uncertain, inconclusive, or unscreened, explain the diagnostic uncertainty and prioritize safe non-chemical observation.\n"
+        "4. If weather telemetry is unavailable, explicitly state that ambient sensor data is offline and advice relies on calibrated species baselines.\n"
+        "5. Output MUST be ONLY a single valid JSON object matching the requested schema without markdown backticks."
     )
+
+    weather_text = (
+        f"{weather.get('temperature')}°C, Humidity: {weather.get('humidity')}%, Rain: {weather.get('rainfall', 0)} mm ({weather.get('condition', 'Clear')})"
+        if weather.get("temperature") is not None and weather.get("source") != "unavailable"
+        else "Telemetry unavailable (offline/unreachable — species baseline applied)"
+    )
+
+    diag_status = disease.get("status", "confirmed")
+    diag_conf = f"{disease.get('confidence')*100:.1f}%" if disease.get("confidence") is not None else "Not evaluated"
 
     user_prompt = f"""Analyze this urban plant context and provide personalized botanical care guidance:
 
@@ -278,12 +288,13 @@ def build_personalization_prompts(context_data: Dict[str, Any]) -> Tuple[str, st
 - Container: {soil.get('pot_size_liters', 7.5)} Liters, Soil: {soil.get('soil_type', 'potting_mix')}
 
 [WEATHER & MICROCLIMATE]
-- Current Weather: {weather.get('temperature', 22.0)}°C, Humidity: {weather.get('humidity', 60)}%, Rain: {weather.get('rainfall', 0)} mm ({weather.get('condition', 'Clear')})
+- Current Weather: {weather_text}
 - Forecast Outlook: {forecast.get('summary', 'Temperate seasonal weather')}
 
 [PATHOLOGY & DIAGNOSIS]
 - Active Diagnosis: {disease.get('disease_name', 'Healthy Plant Leaf')}
-- Is Healthy: {disease.get('is_healthy', True)}
+- Diagnostic Status: {diag_status} (Confidence: {diag_conf})
+- Is Healthy: {disease.get('is_healthy')}
 - Severity: {disease.get('severity', 'none')}
 - Symptoms: {disease.get('symptoms', 'None')}
 
@@ -340,19 +351,24 @@ def synthesize_deterministic_guidance(context_data: Dict[str, Any]) -> Dict[str,
     weather = dims.get("current_weather", {})
     temp = weather.get("temperature", 22.0)
     humidity = weather.get("humidity", 60.0)
+    weather_offline = temp is None or weather.get("source") == "unavailable"
     disease = dims.get("current_disease_status", {})
     is_healthy = disease.get("is_healthy", True)
     disease_name = disease.get("disease_name", "Healthy Plant Leaf")
+    diag_status = disease.get("status", "confirmed")
     severity = disease.get("severity", "none")
     symptoms = disease.get("symptoms", "")
     care = dims.get("approved_care_guidance", {})
+    is_uncertain = diag_status in ("uncertain", "inconclusive") or care.get("is_uncertain", False)
     watering_rec = context_data.get("watering_engine_recommendation", {})
     target_ml = watering_rec.get("recommended_amount_ml", 250)
     water_date = watering_rec.get("recommended_date", "Today")
     water_reason = watering_rec.get("reason", "Routine hydration")
 
     # Priority determination
-    if not is_healthy and severity in ("high", "urgent"):
+    if is_uncertain:
+        priority = "medium"
+    elif not is_healthy and severity in ("high", "urgent"):
         priority = "urgent"
     elif not is_healthy and severity == "medium":
         priority = "high"
@@ -361,11 +377,52 @@ def synthesize_deterministic_guidance(context_data: Dict[str, Any]) -> Dict[str,
     else:
         priority = "routine"
 
-    if is_healthy:
+    weather_desc = f"{temp}°C, {humidity}% humidity" if not weather_offline else "Standard microclimate (telemetry offline)"
+
+    if is_uncertain:
+        explanation = (
+            f"Foliar inspection for your {plant_name} ({species}) at {age_days} days old ({stage} stage) is currently inconclusive. "
+            f"Visual features ({symptoms or 'minor foliage marks'}) do not meet confirmed pathogen thresholds. "
+            f"Safe cultural monitoring is prioritized over premature chemical intervention."
+        )
+        immediate_steps = care.get("immediate_actions", [
+            f"Monitor {plant_name} closely for progressive leaf symptoms without applying chemical treatments prematurely.",
+            f"Capture a fresh, well-lit close-up photograph of affected leaf margins in natural daylight.",
+            f"Ensure container drainage is unobstructed and isolate if rapid wilting develops."
+        ])
+        treatment_explanation = (
+            f"Adhere strictly to the approved observational protocol: {care.get('condition_name', 'Diagnostic Monitoring')}. "
+            f"Do not apply copper, sulfur, or harsh synthetic fungicides while diagnosis remains unverified. "
+            f"Gently wipe dusty leaf surfaces and maintain clean cultural hygiene."
+        )
+        watering_explanation = (
+            f"Administer {target_ml} ml on {water_date}. {water_reason}. "
+            f"Maintaining consistent, measured soil moisture prevents drought or overwatering stress while foliage is under observation."
+        )
+        prevention_guidance = (
+            f"Maintain generous spacing around the container to promote airflow. "
+            f"Always direct irrigation to the soil collar; avoid wetting leaf surfaces."
+        )
+        monitoring_instructions = (
+            f"Inspect leaf undersides and margins every 24-48 hours. Watch for spreading circular spots, spore masses, or yellow halos."
+        )
+        next_scan_recommendation = (
+            "Capture your next leaf scan in 2 to 3 days in clear morning daylight to re-evaluate diagnostic status."
+        )
+        coach_guidance = (
+            f"Urban gardening requires patience. Unnecessary chemical sprays can stress young leaves more than minor environmental marks. "
+            f"Observing progression before acting protects beneficial microflora."
+        )
+        expert_conditions = (
+            "Contact a local extension service if widespread necrosis, rapid stem collapse, or foul root odor develops within 48 hours."
+        )
+        summary = f"Diagnosis is inconclusive for {plant_name}. Non-chemical monitoring prioritized; next scan in 2-3 days."
+
+    elif is_healthy:
         explanation = (
             f"Your {plant_name} ({species}) is displaying robust vigor at {age_days} days old in its {stage} growth stage. "
             f"Foliage shows balanced chlorophyll distribution with no signs of fungal or bacterial colonization. "
-            f"Current microclimate at {location} ({temp}°C, {humidity}% humidity) is supportive of ongoing healthy transpiration."
+            f"Microclimate at {location} ({weather_desc}) supports steady vegetative transpiration."
         )
         immediate_steps = [
             f"Inspect leaf undersides and stem nodes during morning rounds for early pest detection.",
@@ -378,8 +435,7 @@ def synthesize_deterministic_guidance(context_data: Dict[str, Any]) -> Dict[str,
         )
         watering_explanation = (
             f"Administer {target_ml} ml on {water_date}. {water_reason}. "
-            f"With ambient temperature at {temp}°C and {humidity}% relative humidity, this volume maintains optimal soil tension "
-            f"without risking anaerobic conditions at the container base."
+            f"This volume maintains optimal soil tension without risking anaerobic conditions at the container base."
         )
         prevention_guidance = (
             f"Maintain at least 15 cm spacing around the container to promote laminar airflow. "
@@ -409,7 +465,7 @@ def synthesize_deterministic_guidance(context_data: Dict[str, Any]) -> Dict[str,
         explanation = (
             f"Your {plant_name} ({species}) at {age_days} days old ({stage} stage) is actively dealing with {disease_name}. "
             f"The observed symptoms ({symptoms or 'foliage lesions'}) indicate a {severity} severity condition. "
-            f"Current weather in {location} ({temp}°C, {humidity}% humidity) can accelerate spore development if foliage remains moist."
+            f"Ambient microclimate ({weather_desc}) requires diligent moisture control to halt pathogen spread."
         )
         immediate_steps = [
             immediate_actions[0] if immediate_actions else f"Isolate {plant_name} from adjacent plants to prevent airborne spore transmission.",

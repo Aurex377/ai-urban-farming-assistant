@@ -87,8 +87,9 @@ def _format_nemotron_prompt_context(dimensions: Dict[str, Any], watering_rec: Di
         f"- Total Past Diagnoses: {path_hist.get('total_past_records', 0)}",
         "",
         "DIMENSION 7: CURRENT AMBIENT WEATHER",
-        f"- Temperature: {curr_weather.get('temperature', 22.0)}°C",
-        f"- Humidity: {curr_weather.get('humidity', 60.0)}%",
+        f"- Status: {'Available' if curr_weather.get('temperature') is not None else 'Telemetry Unavailable'}",
+        f"- Temperature: {str(curr_weather.get('temperature')) + '°C' if curr_weather.get('temperature') is not None else 'Unavailable'}",
+        f"- Humidity: {str(curr_weather.get('humidity')) + '%' if curr_weather.get('humidity') is not None else 'Unavailable'}",
         f"- Precipitation: {curr_weather.get('rainfall', curr_weather.get('rainfall_mm', 0.0))} mm",
         f"- Condition: {curr_weather.get('condition') or curr_weather.get('weather_condition', 'Clear')}",
         "",
@@ -97,8 +98,9 @@ def _format_nemotron_prompt_context(dimensions: Dict[str, Any], watering_rec: Di
         "",
         "DIMENSION 9: ACTIVE PATHOLOGY STATUS",
         f"- Disease Diagnosis: {disease.get('disease_name', 'Healthy Plant Leaf')}",
-        f"- Is Healthy: {disease.get('is_healthy', True)}",
-        f"- Diagnostic Confidence: {disease.get('confidence', 1.0)*100:.1f}%",
+        f"- Pathology Status: {disease.get('status', 'confirmed')}",
+        f"- Is Healthy: {disease.get('is_healthy')}",
+        f"- Diagnostic Confidence: {str(round(disease['confidence']*100, 1)) + '%' if disease.get('confidence') is not None else 'Unscreened / Not evaluated'}",
         f"- Severity: {disease.get('severity', 'none')}",
         f"- Symptoms: {disease.get('symptoms', 'None')}",
         "",
@@ -158,36 +160,70 @@ def assemble_plant_recommendation_context(
 
     # 4. Watering History
     last_watered_at = plant.get("last_watered_at")
-    if logs and not last_watered_at:
-        last_watered_at = logs[0].get("watered_at")
+    if logs:
+        log_last = logs[0].get("watered_at")
+        if not last_watered_at or (log_last and str(log_last) > str(last_watered_at)):
+            last_watered_at = log_last
 
-    # 5. Disease Status
+    # 5. Disease Status (Distinguishing confirmed, uncertain, failed, and unscreened states)
     disease_status = {
         "has_active_disease": False,
         "is_healthy": True,
         "disease_name": "Healthy Plant Leaf",
-        "confidence": 1.0,
+        "status": "unscreened",
+        "confidence": None,
         "severity": "none",
-        "symptoms": "No visual pathogen symptoms detected.",
+        "symptoms": "No diagnostic scans recorded for this plant yet.",
         "diagnosed_at": None,
-        "model_used": "NVIDIA Nemotron"
+        "model_used": None,
+        "uncertainty_note": "Plant has not undergone AI leaf pathology screening.",
     }
 
-    if latest_diagnosis and latest_diagnosis.get("status") == "completed":
+    if latest_diagnosis:
+        diag_status = latest_diagnosis.get("status", "completed")
         d_name = latest_diagnosis.get("disease_name", "")
         conf = float(latest_diagnosis.get("confidence") or latest_diagnosis.get("confidence_score") or 0.0)
-        is_healthy = "healthy" in d_name.lower() or conf < 0.2
 
-        disease_status = {
-            "has_active_disease": not is_healthy,
-            "is_healthy": is_healthy,
-            "disease_name": d_name if not is_healthy else "Healthy Plant Leaf",
-            "confidence": conf,
-            "severity": latest_diagnosis.get("severity") or ("none" if is_healthy else "medium"),
-            "symptoms": latest_diagnosis.get("symptoms") or ("Clear healthy leaf surface" if is_healthy else "Visible lesions"),
-            "diagnosed_at": latest_diagnosis.get("diagnosed_at") or latest_diagnosis.get("created_at"),
-            "model_used": latest_diagnosis.get("model_name") or "NVIDIA Nemotron"
-        }
+        if diag_status in ("uncertain", "inconclusive"):
+            disease_status = {
+                "has_active_disease": None,
+                "is_healthy": None,
+                "disease_name": d_name or "Inconclusive Observation",
+                "status": "uncertain",
+                "confidence": conf if conf > 0 else None,
+                "severity": latest_diagnosis.get("severity") or "low",
+                "symptoms": latest_diagnosis.get("symptoms") or "Ambiguous or minor foliar marks",
+                "diagnosed_at": latest_diagnosis.get("diagnosed_at") or latest_diagnosis.get("created_at"),
+                "model_used": latest_diagnosis.get("model_name"),
+                "uncertainty_note": "Visual symptoms do not definitively match verified pathogen criteria. Safe non-chemical observation recommended.",
+            }
+        elif diag_status in ("failed", "model_unavailable"):
+            disease_status = {
+                "has_active_disease": None,
+                "is_healthy": None,
+                "disease_name": "Diagnostic Pipeline Incomplete",
+                "status": "failed",
+                "confidence": None,
+                "severity": "none",
+                "symptoms": "Diagnostic inference was not completed.",
+                "diagnosed_at": None,
+                "model_used": latest_diagnosis.get("model_name"),
+                "uncertainty_note": "Model was unavailable during last scan attempt. No confirmed disease.",
+            }
+        elif diag_status == "completed":
+            is_healthy = "healthy" in d_name.lower() or conf < 0.2
+            disease_status = {
+                "has_active_disease": not is_healthy,
+                "is_healthy": is_healthy,
+                "disease_name": d_name if not is_healthy else "Healthy Plant Leaf",
+                "status": "confirmed",
+                "confidence": conf,
+                "severity": latest_diagnosis.get("severity") or ("none" if is_healthy else "medium"),
+                "symptoms": latest_diagnosis.get("symptoms") or ("Clear healthy leaf surface" if is_healthy else "Visible lesions"),
+                "diagnosed_at": latest_diagnosis.get("diagnosed_at") or latest_diagnosis.get("created_at"),
+                "model_used": latest_diagnosis.get("model_name") or "NVIDIA Nemotron",
+                "uncertainty_note": None if not is_healthy else "Confirmed healthy leaf vigor.",
+            }
 
     # 6. Deterministic Watering Calculation
     watering_rec = calculate_watering_recommendation(
@@ -200,8 +236,10 @@ def assemble_plant_recommendation_context(
     # 7. Approved Botanical Care Guidance
     care_guidance = get_approved_care_guidance(
         disease_name=disease_status["disease_name"],
-        is_healthy=disease_status["is_healthy"],
-        plant_type=plant.get("plant_type")
+        is_healthy=bool(disease_status.get("is_healthy")),
+        plant_type=plant.get("plant_type"),
+        diagnosis_status=disease_status.get("status"),
+        confidence=disease_status.get("confidence")
     )
 
     # 8. All 10 Dimensions Structured

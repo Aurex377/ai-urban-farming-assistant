@@ -44,12 +44,15 @@ WMO_WEATHER_MAP = {
 }
 
 
-def _get_fallback_weather(city_name: Optional[str] = None) -> Dict[str, Any]:
-    """Deterministic, realistic fallback data when network or external API is unavailable."""
+def _get_fallback_weather(city_name: Optional[str] = None, is_offline: bool = True) -> Dict[str, Any]:
+    """Deterministic fallback data when network or external API is unavailable."""
     return {
         "city": city_name or DEFAULT_CITY,
         "latitude": DEFAULT_LATITUDE,
         "longitude": DEFAULT_LONGITUDE,
+        "available": not is_offline,
+        "is_available": not is_offline,
+        "status": "offline_fallback" if is_offline else "online",
         "current": {
             "temperature": 24.5,
             "humidity": 62.0,
@@ -57,13 +60,14 @@ def _get_fallback_weather(city_name: Optional[str] = None) -> Dict[str, Any]:
             "rainfall": 0.0,
             "wind_speed": 9.5,
             "wind": 9.5,
-            "weather_condition": "Partly Cloudy",
-            "condition": "Partly Cloudy",
+            "weather_condition": "Telemetry Unavailable" if is_offline else "Partly Cloudy",
+            "condition": "Telemetry Unavailable" if is_offline else "Partly Cloudy",
             "condition_type": "partly_cloudy",
             "feels_like": 25.5,
             "uv_index": 5.2,
-            "recorded_at": datetime.now(timezone.utc).isoformat(),
-            "source": "deterministic_fallback"
+            "recorded_at": None if is_offline else datetime.now(timezone.utc).isoformat(),
+            "source": "deterministic_fallback",
+            "is_available": not is_offline,
         },
         "forecast": [
             {"day": "Today", "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"), "temp_max": 25.0, "temp_min": 16.0, "condition": "Partly Cloudy", "rainfall_mm": 0.0, "rain_chance": 10},
@@ -73,10 +77,11 @@ def _get_fallback_weather(city_name: Optional[str] = None) -> Dict[str, Any]:
             {"day": "Day 5", "date": "", "temp_max": 24.0, "temp_min": 15.5, "condition": "Partly Cloudy", "rainfall_mm": 0.0, "rain_chance": 20},
         ],
         "garden_impact": {
-            "summary": "Mild temperatures and low rainfall favor steady watering. Watch for rain on Day 3.",
+            "summary": "External weather telemetry is offline. Operating on calibrated species baseline without microclimate multiplier.",
             "evaporation_rate": "moderate",
             "frost_risk": False,
-            "heat_stress_risk": False
+            "heat_stress_risk": False,
+            "telemetry_available": not is_offline
         }
     }
 
@@ -156,6 +161,9 @@ async def fetch_weather_data(latitude: Optional[float] = None, longitude: Option
                     "city": city,
                     "latitude": lat,
                     "longitude": lon,
+                    "available": True,
+                    "is_available": True,
+                    "status": "online",
                     "current": {
                         "temperature": round(temp, 1),
                         "humidity": round(humidity, 1),
@@ -169,7 +177,8 @@ async def fetch_weather_data(latitude: Optional[float] = None, longitude: Option
                         "feels_like": round(temp + (1.0 if humidity > 60 else -1.0), 1),
                         "uv_index": 5.0,
                         "recorded_at": datetime.now(timezone.utc).isoformat(),
-                        "source": "open-meteo"
+                        "source": "open-meteo",
+                        "is_available": True,
                     },
                     "forecast": forecast_days,
                     "garden_impact": {
@@ -177,9 +186,10 @@ async def fetch_weather_data(latitude: Optional[float] = None, longitude: Option
                         "evaporation_rate": "high" if temp > 28 else ("low" if temp < 18 else "moderate"),
                         "frost_risk": low_temp,
                         "heat_stress_risk": high_temp,
+                        "telemetry_available": True,
                     }
                 }
     except Exception as exc:
         logger.warning(f"Live weather fetch failed, using fallback: {exc}")
 
-    return _get_fallback_weather()
+    return _get_fallback_weather(city_name=city, is_offline=True)

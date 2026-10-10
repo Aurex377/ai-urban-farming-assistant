@@ -174,12 +174,30 @@ async def calculate_and_save_watering(
     # 3. Fetch weather telemetry
     weather_data = await fetch_weather_data(location_name=plant_data.get("location"))
 
+    # Fetch latest watering log to guarantee recent intake is reflected
+    last_watered_at = plant_data.get("last_watered_at")
+    try:
+        log_res = (
+            supabase.table("watering_logs")
+            .select("watered_at")
+            .eq("plant_id", plant_id)
+            .order("watered_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if log_res.data and log_res.data[0].get("watered_at"):
+            log_date = log_res.data[0]["watered_at"]
+            if not last_watered_at or str(log_date) > str(last_watered_at):
+                last_watered_at = log_date
+    except Exception:
+        pass
+
     # 4. Execute deterministic calculation
     rec_result = calculate_watering_recommendation(
         plant=plant_data,
         weather_data=weather_data,
         latest_diagnosis=latest_diagnosis,
-        last_watered_at_str=plant_data.get("last_watered_at")
+        last_watered_at_str=last_watered_at
     )
 
     # 5. Persist recommendation in Supabase
