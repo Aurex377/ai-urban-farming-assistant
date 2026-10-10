@@ -19,6 +19,7 @@ try:
         PlantResponse,
         PlantDeleteResponse,
     )
+    from backend.services.context_aggregator import aggregate_plant_context
 except ImportError:
     from database import get_supabase
     from schemas.plants import (
@@ -27,8 +28,10 @@ except ImportError:
         PlantResponse,
         PlantDeleteResponse,
     )
+    from services.context_aggregator import aggregate_plant_context
 
 router = APIRouter(prefix="/api/plants", tags=["Plants"])
+
 
 DEFAULT_DEV_USER = "27865d2c-302e-4a2d-83aa-c1c9ea7338a4"
 
@@ -308,3 +311,50 @@ def delete_plant(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Database error deleting plant: {str(exc)}"
         )
+
+
+@router.get("/{plant_id}/context", summary="Get comprehensive 10-dimensional recommendation context for a plant")
+async def get_plant_recommendation_context(
+    plant_id: int,
+    user_id: Optional[str] = Query(None),
+    supabase: Client = Depends(get_supabase)
+):
+    """
+    Synthesizes the complete deterministic context:
+    plant profile, age, garden zone, soil/container, watering history,
+    diagnoses history, live weather, forecast, active pathology, and approved care guidance.
+    Ready for UI display and future NVIDIA Nemotron handoff.
+    """
+    try:
+        context = await aggregate_plant_context(
+            plant_id=plant_id,
+            supabase=supabase,
+            user_id=user_id or get_current_user_id()
+        )
+        return context
+    except ValueError as val_err:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(val_err)
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error aggregating plant context: {str(exc)}"
+        )
+
+
+@router.get("/{plant_id}/personalized", summary="Get NVIDIA Nemotron personalized guidance for a plant (Phase 4)")
+async def get_plant_personalized_guidance(
+    plant_id: int,
+    supabase: Client = Depends(get_supabase)
+):
+    """
+    Convenience alias for Phase 4 NVIDIA Nemotron personalized guidance.
+    """
+    try:
+        from backend.routes.care import get_latest_personalized_care
+    except ImportError:
+        from routes.care import get_latest_personalized_care
+    return await get_latest_personalized_care(plant_id=plant_id, auto_generate=True, supabase=supabase)
+

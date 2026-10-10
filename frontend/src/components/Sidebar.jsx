@@ -1,6 +1,8 @@
 import { NavLink } from 'react-router-dom';
 import { Home, Leaf, Activity, Droplets, Heart, CloudSun, Clock, Settings } from 'lucide-react';
 
+import NotificationCenter from './NotificationCenter';
+
 export default function Sidebar() {
   const navItems = [
     { name: 'Dashboard', path: '/dashboard', icon: Home },
@@ -14,11 +16,12 @@ export default function Sidebar() {
 
   return (
     <div className="w-64 bg-white border-r border-gray-100 flex flex-col h-full hidden md:flex">
-      <div className="p-6">
+      <div className="p-6 flex items-center justify-between border-b border-gray-50">
         <h1 className="text-xl font-bold text-primary flex items-center gap-2">
           <Leaf className="w-6 h-6 text-primary" />
           PlantCare AI
         </h1>
+        <NotificationCenter />
       </div>
       
       <nav className="flex-1 px-4 space-y-2 overflow-y-auto">

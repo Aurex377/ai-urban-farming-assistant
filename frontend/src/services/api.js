@@ -29,48 +29,70 @@ export {
   createPendingDiagnosis,
   getPlantDiagnoses,
   getDiagnosis,
+  triggerDiagnosisAnalysis,
+  getLLaVAModelStatus,
+  pollDiagnosisResult,
 } from './diagnosisService';
 
 // Legacy alias for runDiagnosis -> createPendingDiagnosis
 import { createPendingDiagnosis } from './diagnosisService';
 export const runDiagnosis = (plantId, imageId) => createPendingDiagnosis(plantId, imageId);
 
-// Care Recommendations (Phase 0 / ready for Phase 2)
-import { apiRequest } from './apiClient';
+// Care Recommendations & Guidance (Phase 3 & Phase 4)
+export {
+  getCareGuidance,
+  getCareProtocols,
+  getCareRecommendations,
+  createCareRecommendation,
+  getPersonalizedCare,
+  generatePersonalizedCare,
+  getNemotronStatus,
+} from './careService';
 
-export async function getCareRecommendations(plantId) {
-  return await apiRequest(`/api/care/${plantId}`);
-}
+// Watering Engine & Logs (Phase 3)
+export {
+  getWateringScheduleAll,
+  calculateWatering,
+  getWateringLogs,
+  createWateringLog,
+  getWateringRecommendations,
+} from './wateringService';
 
-export async function createCareRecommendation(plantId, careData) {
-  return await apiRequest(`/api/care/${plantId}`, {
-    method: 'POST',
-    body: JSON.stringify(careData),
-  });
-}
+// Weather Telemetry (Phase 3)
+export {
+  getCurrentWeather,
+  getWeatherForecast,
+  getPlantWeather,
+} from './weatherService';
 
-// Watering Logs & Recommendations (Phase 0 / ready for Phase 2)
-export async function getWateringLogs(plantId) {
-  return await apiRequest(`/api/watering/${plantId}/logs`);
-}
-
-export async function createWateringLog(plantId, logData) {
-  return await apiRequest(`/api/watering/${plantId}/log`, {
-    method: 'POST',
-    body: JSON.stringify(logData),
-  });
-}
-
-export async function getWateringRecommendations(plantId) {
-  return await apiRequest(`/api/watering/${plantId}/recommendations`);
-}
-
-// Weather Records (Phase 0 / ready for Phase 2)
-export async function getPlantWeather(plantId) {
-  return await apiRequest(`/api/weather/${plantId}`);
-}
+// Recommendation Context Aggregator (Phase 3)
+export {
+  getPlantRecommendationContext,
+} from './contextService';
 
 // User Activities (Phase 0 / ready for Phase 2)
+import { apiRequest } from './apiClient';
 export async function getUserActivities(userId) {
   return await apiRequest(`/api/activities/${userId}`);
 }
+
+// Plant Health Timeline (Phase 5)
+export {
+  getPlantTimeline,
+  getPlantTrajectory,
+} from './timelineService';
+
+// Notifications & Early Warnings (Phase 5)
+export {
+  getNotifications,
+  getNotificationBadge,
+  markNotificationRead,
+  markAllNotificationsRead,
+  syncNotifications,
+} from './notificationService';
+
+export {
+  getAllEarlyWarnings,
+  getPlantEarlyWarnings,
+} from './warningService';
+

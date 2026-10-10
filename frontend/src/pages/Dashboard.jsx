@@ -1,23 +1,58 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { mockActivities } from '../data/mockActivities';
-import { Droplets, Heart, Leaf, AlertCircle, ArrowRight, Activity, Plus, RefreshCw } from 'lucide-react';
+import {
+  Droplets,
+  Heart,
+  Leaf,
+  AlertCircle,
+  ArrowRight,
+  Activity,
+  Plus,
+  RefreshCw,
+  AlertTriangle,
+  Clock,
+  ShieldCheck,
+  TrendingUp,
+} from 'lucide-react';
 import BackendStatus from '../components/BackendStatus';
-import { getPlants } from '../services/api';
+import {
+  getPlants,
+  getAllEarlyWarnings,
+  getUserActivities,
+} from '../services/api';
 
 export default function Dashboard() {
   const [plants, setPlants] = useState([]);
+  const [warnings, setWarnings] = useState([]);
+  const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const fetchDashboardPlants = async () => {
+  const fetchDashboardData = async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await getPlants();
-      setPlants(Array.isArray(data) ? data : []);
+      const [plantsData, warningsData, activitiesData] = await Promise.allSettled([
+        getPlants(),
+        getAllEarlyWarnings(),
+        getUserActivities('27865d2c-302e-4a2d-83aa-c1c9ea7338a4'),
+      ]);
+
+      if (plantsData.status === 'fulfilled') {
+        setPlants(Array.isArray(plantsData.value) ? plantsData.value : []);
+      } else {
+        throw new Error(plantsData.reason?.message || 'Failed to fetch plants');
+      }
+
+      if (warningsData.status === 'fulfilled') {
+        setWarnings(Array.isArray(warningsData.value) ? warningsData.value : []);
+      }
+
+      if (activitiesData.status === 'fulfilled') {
+        setActivities(Array.isArray(activitiesData.value) ? activitiesData.value : []);
+      }
     } catch (err) {
-      console.error('Error loading plants for dashboard:', err);
+      console.error('Error loading dashboard data:', err);
       setError(err.message || 'Unable to connect to FastAPI backend.');
     } finally {
       setLoading(false);
@@ -25,7 +60,7 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    fetchDashboardPlants();
+    fetchDashboardData();
   }, []);
 
   const healthyCount = plants.filter(
@@ -42,9 +77,19 @@ export default function Dashboard() {
 
   return (
     <div className="p-6 md:p-10 max-w-7xl mx-auto fade-in">
-      <header className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Good morning 👋</h1>
-        <p className="text-gray-600 text-lg">Let's take care of your garden today.</p>
+      <header className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Good morning 👋</h1>
+          <p className="text-gray-600 text-lg">Let's take care of your garden today.</p>
+        </div>
+        <button
+          onClick={fetchDashboardData}
+          disabled={loading}
+          className="self-start md:self-auto px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-xl text-xs font-semibold hover:bg-gray-50 transition-colors flex items-center gap-2 shadow-xs cursor-pointer"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 text-primary ${loading ? 'animate-spin' : ''}`} />
+          Refresh Garden Intel
+        </button>
       </header>
 
       {/* Backend & Database Connection Test Status */}
@@ -61,11 +106,78 @@ export default function Dashboard() {
             </div>
           </div>
           <button
-            onClick={fetchDashboardPlants}
+            onClick={fetchDashboardData}
             className="px-3 py-1.5 bg-rose-600 text-white rounded-xl text-xs font-semibold hover:bg-rose-700 transition-colors flex items-center gap-1 cursor-pointer"
           >
             <RefreshCw className="w-3.5 h-3.5" /> Retry
           </button>
+        </div>
+      )}
+
+      {/* Phase 5: Active Early Warnings Intelligence Banner */}
+      {warnings.length > 0 && (
+        <div className="mb-8 p-5 bg-amber-50/90 border border-amber-200 rounded-3xl shadow-xs">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-amber-100 text-amber-800">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-900 text-base">
+                  Agronomic Early Warnings ({warnings.length})
+                </h3>
+                <p className="text-xs text-amber-900/80">
+                  Deterministic environmental risk rules active for your microclimate
+                </p>
+              </div>
+            </div>
+            <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-amber-200 text-amber-900">
+              Action Recommended
+            </span>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-3 mt-4">
+            {warnings.slice(0, 4).map((warn) => (
+              <div
+                key={warn.id}
+                className="p-4 bg-white rounded-2xl border border-amber-100 flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <span className="text-xs font-bold text-gray-900">
+                      {warn.plant_name}
+                    </span>
+                    <span
+                      className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-md ${
+                        warn.severity === 'urgent'
+                          ? 'bg-rose-100 text-rose-700'
+                          : warn.severity === 'high'
+                          ? 'bg-amber-100 text-amber-800'
+                          : 'bg-yellow-100 text-yellow-800'
+                      }`}
+                    >
+                      {warn.severity}
+                    </span>
+                  </div>
+                  <p className="text-xs font-semibold text-amber-950 mb-1">{warn.title}</p>
+                  <p className="text-[11px] text-gray-600 leading-relaxed mb-2">
+                    {warn.summary}
+                  </p>
+                  <p className="text-[11px] text-emerald-800 bg-emerald-50/60 p-2 rounded-lg border border-emerald-100/60">
+                    <strong>Action:</strong> {warn.recommended_action}
+                  </p>
+                </div>
+                <div className="mt-3 pt-2 border-t border-gray-100 flex justify-end">
+                  <Link
+                    to={`/plants/${warn.plant_id}`}
+                    className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
+                  >
+                    View Plant Details <ArrowRight className="w-3 h-3" />
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -184,7 +296,7 @@ export default function Dashboard() {
                         to={`/plants/${plant.id}`}
                         className="block w-full text-center py-2 bg-gray-50 text-primary font-medium rounded-xl hover:bg-primary hover:text-white transition-colors"
                       >
-                        View Plant →
+                        View Health Timeline →
                       </Link>
                     </div>
                   </div>
@@ -194,35 +306,50 @@ export default function Dashboard() {
           </section>
         </div>
 
+        {/* Right Column: Today's Tasks & Real Activity Logs */}
         <div className="space-y-8">
           <section className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
             <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 text-amber-500" />
-              Today's Tasks
+              <ShieldCheck className="w-5 h-5 text-emerald-600" />
+              Agronomic Action Checklist
             </h2>
-            <div className="space-y-4">
-              <TaskItem icon="💧" text="Check soil moisture" />
-              <TaskItem icon="🌱" text="Inspect plant leaf health" />
-              <TaskItem icon="🔍" text="Upload new growth photo" />
-              <TaskItem icon="☀️" text="Review sunlight exposure" />
+            <div className="space-y-3">
+              <TaskItem icon="💧" text="Verify root-zone moisture before noon heat" />
+              <TaskItem icon="📸" text="Perform periodic leaf scan for early blight" />
+              <TaskItem icon="☀️" text="Inspect container airflow & sunlight exposure" />
+              <TaskItem icon="🌿" text="Bottom-water to keep leaf surfaces dry" />
             </div>
           </section>
 
           <section className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
-            <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-              <Activity className="w-5 h-5 text-primary" />
-              Recent Activity
-            </h2>
-            <div className="space-y-6">
-              {mockActivities.slice(0, 3).map((activity) => (
-                <div key={activity.id} className="flex gap-4">
-                  <div className="w-2 h-2 mt-2 rounded-full bg-primary"></div>
-                  <div>
-                    <p className="text-gray-900 font-medium">{activity.title}</p>
-                    <p className="text-sm text-gray-500">{activity.plant} • {activity.time}</p>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                <Clock className="w-5 h-5 text-primary" />
+                Live Garden Activity
+              </h2>
+              <Link to="/activity" className="text-xs text-primary hover:underline font-semibold">
+                Full Log →
+              </Link>
+            </div>
+
+            <div className="space-y-5">
+              {activities.length === 0 ? (
+                <p className="text-xs text-gray-400 italic">
+                  No activity logs recorded yet. Adding plants or running diagnoses will populate this log.
+                </p>
+              ) : (
+                activities.slice(0, 5).map((act) => (
+                  <div key={act.id} className="flex gap-3 text-xs">
+                    <div className="w-2 h-2 mt-1.5 rounded-full bg-primary shrink-0"></div>
+                    <div>
+                      <p className="text-gray-900 font-semibold">{act.description}</p>
+                      <p className="text-[11px] text-gray-400 mt-0.5">
+                        {act.created_at ? new Date(act.created_at).toLocaleDateString() : 'Recent'}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </section>
         </div>
@@ -249,7 +376,7 @@ function TaskItem({ icon, text }) {
   return (
     <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer border border-transparent hover:border-gray-100">
       <span className="text-xl">{icon}</span>
-      <span className="text-gray-700 font-medium text-sm">{text}</span>
+      <span className="text-gray-700 font-medium text-xs">{text}</span>
     </div>
   );
 }

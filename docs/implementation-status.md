@@ -168,3 +168,66 @@ Phase 0 foundation stabilization was completed and verified. The Supabase databa
 5. **Frontend Service Modularization:** Reorganized API interactions into modular services (`apiClient`, `plantService`, `imageService`, `diagnosisService`, `healthService`) configured with `VITE_API_BASE_URL`.
 6. **Automated Verification:** 100% test pass rate across all live Supabase CRUD and validation tests; 0 errors on frontend production build and linting.
 
+---
+
+## 8. Phase 2: Local LLaVA Vision Integration
+
+**Status:** Completed & Verified  
+**Date of Verification:** October 2026  
+
+### 8.1 Scope & Accomplishments Delivered
+1. **Local Vision Engine Integration:** Implemented `backend/services/llava_service.py` with multi-provider local inference (Ollama `/api/generate` and OpenAI-compatible `/v1/chat/completions`).
+2. **Strict Output Contract:** Enforced structured clinical JSON generation via `LLaVAPathologyResult` (validating disease name, confidence, severity, visual symptoms, and clinical findings).
+3. **Background & Synchronous Execution:** Connected FastAPI background tasks to process images asynchronously without blocking upload requests, while supporting on-demand synchronous execution (`POST /api/diagnoses/{id}/analyze`).
+4. **Resilient Failure Handling:** Implemented honest `model_unavailable` and `inconclusive` terminal states with informative guidance (e.g., prompting user to run `ollama run llava`) rather than fabricating fake predictions.
+5. **Deterministic Plant Health Sync:** Successfully completed diagnoses automatically update the plant's `health_status` and `health_score` in Supabase.
+6. **Frontend Real Diagnosis Experience:** Updated `Diagnosis.jsx` and `PlantDetails.jsx` to render live model status pills, completed pathology breakdowns, and retry controls for offline models.
+7. **Automated Verification:** Built and verified `backend/tests/test_phase2.py` with 100% pass rate; verified frontend production build with 0 errors.
+
+---
+
+## 9. Phase 3: Context Aggregator, Weather Service, Watering Engine, and Approved Care Guidance
+
+**Status:** Completed & Verified  
+**Date of Verification:** October 2026  
+
+### 9.1 Scope & Accomplishments Delivered
+1. **Deterministic Decision Support Layer:** Synthesizes all 10 agronomic dimensions into a standardized context payload (`GET /api/plants/{plant_id}/context`):
+   - Dimension 1: Plant profile (species, category, name, health score).
+   - Dimension 2: Plant age and growth stage phenology (`seedling`, `vegetative`, `flowering_fruiting`, `mature`).
+   - Dimension 3: Garden zone and microclimate (indoor/outdoor, sunlight levels).
+   - Dimension 4: Soil and container conditions (soil medium, drainage pot volume).
+   - Dimension 5: Watering history (last watered date, days elapsed, volume audit).
+   - Dimension 6: Previous clinical diagnoses history.
+   - Dimension 7: Current live ambient weather (temperature, humidity, precipitation, wind).
+   - Dimension 8: Hyperlocal 5-day weather forecast with agricultural impact analysis.
+   - Dimension 9: Active pathology status (disease name, severity, confidence, symptoms).
+   - Dimension 10: Approved botanical care guidance (organic interventions, preventions, prohibitions).
+2. **Hyperlocal Weather Service (`weather_service.py`):**
+   - Live telemetry integration via Open-Meteo REST API (zero external API keys required).
+   - Automatic deterministic fallback for offline/isolated networks.
+   - Agricultural microclimate analysis (evaporation rates, rainfall accumulation alerts).
+3. **Scientific Watering Engine (`watering_engine.py`):**
+   - Species evapotranspiration baselines (vegetable: 450ml, fruit: 500ml, herb: 250ml, indoor: 180ml, succulent: 80ml).
+   - Stage multipliers: seedling (0.5x), vegetative (1.0x), flowering/fruiting (1.25x), mature (1.1x).
+   - Evapotranspiration adjustments: heat (>32°C -> 1.35x), cold (<16°C -> 0.75x), dry air (<35% RH -> 1.15x), humid (>80% RH -> 0.85x).
+   - Pathogen throttling: root rot triggers 80% volume reduction (0.2x) to allow root aeration; foliar pathogens trigger bottom-watering protocols.
+   - Rainfall postponement: natural rainfall >= 5mm sets volume to 0ml and postpones watering by 2 days; forecast rainfall >= 3mm triggers tomorrow postponement.
+4. **Approved Care Guidance Service (`care_guidance_service.py`):**
+   - Scientifically verified protocols for Early Blight, Late Blight, Powdery Mildew, Septoria Leaf Spot, Root Rot, Aphids, Spider Mites, and Healthy Maintenance.
+   - Structured guidance includes: immediate actions, approved treatments, cultural preventions, prohibited practices, and environmental adjustments.
+5. **Frontend Pages & Services:**
+   - `Watering.jsx`: Connects to `GET /api/watering/schedule/all`, provides quick watering logging with volume calculation rationale and telemetry indicators.
+   - `Care.jsx`: Connects to `GET /api/care/protocols`, offering category-filtered botanical guidance cards.
+   - `Weather.jsx`: Connects to `GET /api/weather/forecast`, rendering live ambient telemetry, 5-day agricultural forecast, and garden impact cards.
+   - `PlantDetails.jsx`: Connected to `GET /api/plants/{id}/context` to display live deterministic watering metrics, tailored care guidance, and collapsible structured Nemotron context inspector.
+6. **Automated Verification:**
+   - Created `backend/tests/test_phase3.py` (14/14 tests passing).
+   - Re-verified `backend/tests/test_phase1.py` (5/5 tests passing).
+   - Re-verified `backend/tests/test_phase2.py` (6/6 tests passing).
+   - Frontend `npm run lint`: 0 errors.
+   - Frontend `npm run build`: 0 errors (1928 modules transformed).
+   - Structured context string ready for NVIDIA Nemotron in Phase 4. Zero premature Phase 4 LLM calls introduced.
+
+
+

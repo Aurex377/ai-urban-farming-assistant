@@ -1,10 +1,20 @@
 import { Outlet, NavLink } from 'react-router-dom';
 import Sidebar from './Sidebar';
+import NotificationCenter from './NotificationCenter';
 import { Home, Leaf, Activity, Droplets, MoreHorizontal } from 'lucide-react';
 
 export default function Layout() {
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
+    <div className="flex flex-col md:flex-row h-screen bg-background overflow-hidden">
+      {/* Mobile Top Header */}
+      <header className="md:hidden flex items-center justify-between px-5 py-3.5 bg-white border-b border-gray-100 z-40">
+        <div className="flex items-center gap-2">
+          <Leaf className="w-5 h-5 text-primary" />
+          <span className="font-bold text-gray-900 text-lg">PlantCare AI</span>
+        </div>
+        <NotificationCenter />
+      </header>
+
       <Sidebar />
       
       <main className="flex-1 h-full overflow-y-auto relative pb-20 md:pb-0">

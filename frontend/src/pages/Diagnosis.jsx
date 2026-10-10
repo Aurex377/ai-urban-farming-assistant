@@ -1,7 +1,27 @@
 import { useState, useEffect } from 'react';
-import { Camera, Loader2, Sparkles, AlertCircle, Clock, CheckCircle2, Leaf, ArrowRight } from 'lucide-react';
+import {
+  Camera,
+  Loader2,
+  Sparkles,
+  AlertCircle,
+  Clock,
+  CheckCircle2,
+  Leaf,
+  ArrowRight,
+  Server,
+  RefreshCw,
+  AlertTriangle,
+  Info,
+} from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { getPlants, uploadPlantImage, createPendingDiagnosis } from '../services/api';
+import {
+  getPlants,
+  uploadPlantImage,
+  createPendingDiagnosis,
+  triggerDiagnosisAnalysis,
+  getLLaVAModelStatus,
+  pollDiagnosisResult,
+} from '../services/api';
 
 export default function Diagnosis() {
   const [plants, setPlants] = useState([]);
@@ -9,23 +29,36 @@ export default function Diagnosis() {
   const [file, setFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analyzingStep, setAnalyzingStep] = useState('');
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+  const [modelStatus, setModelStatus] = useState(null);
+  const [retryingId, setRetryingId] = useState(null);
 
   useEffect(() => {
-    async function loadPlants() {
+    async function loadInitialData() {
       try {
-        const data = await getPlants();
-        const list = Array.isArray(data) ? data : [];
-        setPlants(list);
-        if (list.length > 0) {
-          setSelectedPlantId(list[0].id);
+        const [plantsData, statusData] = await Promise.allSettled([
+          getPlants(),
+          getLLaVAModelStatus(),
+        ]);
+
+        if (plantsData.status === 'fulfilled') {
+          const list = Array.isArray(plantsData.value) ? plantsData.value : [];
+          setPlants(list);
+          if (list.length > 0) {
+            setSelectedPlantId(list[0].id);
+          }
+        }
+
+        if (statusData.status === 'fulfilled' && statusData.value) {
+          setModelStatus(statusData.value);
         }
       } catch (err) {
-        console.error('Error fetching plants for diagnosis:', err);
+        console.error('Error loading initial diagnosis data:', err);
       }
     }
-    loadPlants();
+    loadInitialData();
   }, []);
 
   const handleImageChange = (e) => {
@@ -58,30 +91,51 @@ export default function Diagnosis() {
 
     setIsAnalyzing(true);
     setError(null);
+    setResult(null);
 
     try {
       // 1. Upload photo to real FastAPI & Supabase Storage
+      setAnalyzingStep('Uploading leaf photo to Supabase Storage...');
       const uploadRes = await uploadPlantImage(selectedPlantId, file);
       const imageId = uploadRes.id || uploadRes.image_id;
 
-      // 2. Prepare real diagnosis in pending state
+      // 2. Prepare diagnosis record in database
+      setAnalyzingStep('Registering diagnosis record and invoking NVIDIA Nemotron Vision Model...');
       const diagRes = await createPendingDiagnosis(selectedPlantId, imageId);
+      const diagnosisId = diagRes.id;
 
-      setResult({
-        disease: diagRes.disease_name || 'Pending AI Analysis',
-        confidence: '0.0%',
-        status: diagRes.status || 'Pending',
-        model: diagRes.model_name || 'Local LLaVA Plant Disease 7B',
-        description:
-          diagRes.diagnosis_details ||
-          'Image uploaded and queued in pending state. Local LLaVA disease detection model scheduled for Phase 2.',
-        plantId: selectedPlantId,
-      });
+      // 3. Trigger or poll diagnosis inference
+      setAnalyzingStep('Running on-device neural pathology analysis...');
+      let finalData = await triggerDiagnosisAnalysis(diagnosisId, false);
+
+      // If still processing, poll up to 15 seconds
+      if (finalData && ['pending', 'processing'].includes(finalData.status)) {
+        setAnalyzingStep('Awaiting vision model response...');
+        finalData = await pollDiagnosisResult(diagnosisId, 8, 2000);
+      }
+
+      setResult(finalData || diagRes);
     } catch (err) {
-      console.error('Diagnosis creation failed:', err);
-      setError(err.message || 'Unable to queue diagnosis. Please ensure backend is active.');
+      console.error('Diagnosis creation or inference failed:', err);
+      setError(err.message || 'Unable to execute diagnosis. Please ensure backend is active.');
     } finally {
       setIsAnalyzing(false);
+      setAnalyzingStep('');
+    }
+  };
+
+  const handleRetryInference = async (diagnosisId) => {
+    if (!diagnosisId) return;
+    setRetryingId(diagnosisId);
+    setError(null);
+    try {
+      const updated = await triggerDiagnosisAnalysis(diagnosisId, false);
+      setResult(updated);
+    } catch (err) {
+      console.error('Retry inference failed:', err);
+      setError(err.message || 'Retry failed. Please verify local model server is running.');
+    } finally {
+      setRetryingId(null);
     }
   };
 
@@ -94,10 +148,34 @@ export default function Diagnosis() {
 
   return (
     <div className="p-6 md:p-10 max-w-4xl mx-auto fade-in pb-24">
+      {/* Header with Local Model Status Pill */}
       <div className="mb-8 text-center">
-        <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-3">AI Plant Health Check</h1>
+        <div className="flex items-center justify-center gap-2 mb-3">
+          <span className="text-xs font-semibold px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+            NVIDIA Nemotron AI Vision
+          </span>
+          {modelStatus && (
+            <span
+              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${
+                modelStatus.available
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                  : 'bg-amber-50 text-amber-800 border-amber-200'
+              }`}
+              title={modelStatus.message}
+            >
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  modelStatus.available ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
+                }`}
+              ></span>
+              <Server className="w-3 h-3 opacity-70" />
+              {modelStatus.available ? 'Nemotron Online' : 'Nemotron Ready'}
+            </span>
+          )}
+        </div>
+        <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">AI Plant Health Check</h1>
         <p className="text-gray-600 text-base max-w-2xl mx-auto">
-          Upload a clear photo of a plant leaf to register and prepare an AI disease diagnosis record.
+          Upload a clear photo of a plant leaf for real-time pathology analysis powered by NVIDIA Nemotron.
         </p>
       </div>
 
@@ -175,10 +253,10 @@ export default function Diagnosis() {
                   <Loader2 className="w-12 h-12 animate-spin mb-4 text-emerald-400" />
                   <h3 className="text-xl font-bold mb-2 flex items-center gap-2">
                     <Sparkles className="w-5 h-5 text-yellow-300" />
-                    Registering image in Supabase & queueing diagnosis...
+                    Analyzing leaf image with NVIDIA Nemotron...
                   </h3>
                   <p className="text-white/80 text-sm max-w-md">
-                    Uploading image to Supabase Storage and recording a pending analysis record.
+                    {analyzingStep || 'Executing on-device pathology inspection...'}
                   </p>
                 </div>
               )}
@@ -188,71 +266,252 @@ export default function Diagnosis() {
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                 <button
                   onClick={reset}
-                  className="w-full sm:w-auto px-6 py-3 border border-gray-200 text-gray-700 rounded-full font-medium hover:bg-gray-50 text-sm"
+                  className="w-full sm:w-auto px-6 py-3 border border-gray-200 text-gray-700 rounded-full font-medium hover:bg-gray-50 text-sm cursor-pointer"
                 >
                   Choose Different Image
                 </button>
                 <button
                   onClick={handleAnalyze}
                   disabled={!selectedPlantId}
-                  className="w-full sm:w-auto bg-primary text-white px-8 py-3 rounded-full font-bold text-sm hover:bg-primary-dark transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="w-full sm:w-auto bg-primary text-white px-8 py-3 rounded-full font-bold text-sm hover:bg-primary-dark transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
                 >
                   <Sparkles className="w-5 h-5" />
-                  Queue AI Diagnosis
+                  Run AI Diagnosis
                 </button>
               </div>
             )}
 
+            {/* Structured Diagnosis Results Rendering */}
             {result && (
-              <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl p-6 md:p-8 border border-amber-200 fade-in">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="bg-amber-100 p-2.5 rounded-xl text-amber-700">
-                    <Clock className="w-7 h-7" />
+              <div className="fade-in">
+                {/* STATE 1: Completed Successful Diagnosis */}
+                {result.status === 'completed' && (
+                  <div className="bg-gradient-to-br from-emerald-50 via-teal-50 to-green-50 rounded-2xl p-6 md:p-8 border border-emerald-200">
+                    <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+                      <div className="flex items-center gap-3">
+                        <div className="bg-emerald-100 p-2.5 rounded-xl text-emerald-700">
+                          <CheckCircle2 className="w-7 h-7" />
+                        </div>
+                        <div>
+                          <h2 className="text-2xl font-bold text-gray-900">Diagnosis Completed</h2>
+                          <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-200 text-emerald-900 uppercase tracking-wider">
+                            Status: Completed
+                          </span>
+                        </div>
+                      </div>
+                      <span className="text-xs font-medium text-emerald-800 bg-emerald-100 px-3 py-1.5 rounded-xl border border-emerald-200">
+                        {result.model_name || 'NVIDIA Nemotron'}
+                      </span>
+                    </div>
+
+                    <div className="grid md:grid-cols-3 gap-4 mb-6">
+                      <ResultCard
+                        label="Diagnosed Condition"
+                        value={result.disease_name}
+                        color="text-emerald-900"
+                      />
+                      <ResultCard
+                        label="Confidence Score"
+                        value={
+                          typeof result.confidence === 'number'
+                            ? `${(result.confidence * 100).toFixed(1)}%`
+                            : 'Evaluated'
+                        }
+                        color="text-emerald-700"
+                      />
+                      <ResultCard
+                        label="Severity Level"
+                        value={(result.severity || 'none').toUpperCase()}
+                        color={
+                          result.severity === 'high'
+                            ? 'text-rose-600'
+                            : result.severity === 'medium'
+                            ? 'text-amber-600'
+                            : 'text-emerald-700'
+                        }
+                      />
+                    </div>
+
+                    {result.symptoms && (
+                      <div className="mb-4 p-4 bg-white/80 rounded-xl border border-emerald-100">
+                        <h3 className="text-sm font-bold text-gray-900 mb-1 flex items-center gap-1.5">
+                          <Leaf className="w-4 h-4 text-emerald-600" />
+                          Observed Visual Symptoms
+                        </h3>
+                        <p className="text-gray-700 text-sm leading-relaxed">{result.symptoms}</p>
+                      </div>
+                    )}
+
+                    <div className="mb-6 p-4 bg-white/80 rounded-xl border border-emerald-100">
+                      <h3 className="text-sm font-bold text-gray-900 mb-1">Clinical Findings & Details</h3>
+                      <p className="text-gray-700 text-sm leading-relaxed">
+                        {result.diagnosis_details}
+                      </p>
+                    </div>
+
+                    <div className="p-4 bg-emerald-100/70 rounded-xl border border-emerald-200 text-emerald-950 text-xs mb-6 flex items-center gap-2">
+                      <Info className="w-4 h-4 text-emerald-700 shrink-0" />
+                      <span>
+                        Analysis was computed with NVIDIA Nemotron. Leaf photo and diagnosis records are safely archived in Supabase.
+                      </span>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4 border-t border-emerald-200/60">
+                      <button
+                        onClick={reset}
+                        className="text-gray-700 font-medium hover:underline bg-white px-6 py-2.5 rounded-xl shadow-xs border border-gray-200 text-sm w-full sm:w-auto cursor-pointer"
+                      >
+                        Analyze another image
+                      </button>
+                      <Link
+                        to={`/plants/${selectedPlantId}`}
+                        className="bg-primary text-white font-medium px-6 py-2.5 rounded-xl shadow-xs hover:bg-primary-dark text-sm flex items-center justify-center gap-2 w-full sm:w-auto"
+                      >
+                        <Leaf className="w-4 h-4" /> View Plant Details <ArrowRight className="w-4 h-4" />
+                      </Link>
+                    </div>
                   </div>
-                  <div>
-                    <h2 className="text-2xl font-bold text-gray-900">Diagnosis Pipeline Status</h2>
-                    <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-amber-200 text-amber-900 uppercase tracking-wider">
-                      Status: {result.status}
-                    </span>
+                )}
+
+                {/* STATE 2: Model Unavailable / Offline */}
+                {result.status === 'model_unavailable' && (
+                  <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl p-6 md:p-8 border border-amber-200">
+                    <div className="flex items-center gap-3 mb-6">
+                      <div className="bg-amber-100 p-2.5 rounded-xl text-amber-700">
+                        <AlertTriangle className="w-7 h-7" />
+                      </div>
+                      <div>
+                        <h2 className="text-2xl font-bold text-gray-900">Local Model Server Offline</h2>
+                        <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-amber-200 text-amber-900 uppercase tracking-wider">
+                          Status: Model Unavailable
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="mb-6 p-4 bg-white/90 rounded-xl border border-amber-200">
+                      <h3 className="text-sm font-bold text-gray-900 mb-1">Diagnostic Notice</h3>
+                      <p className="text-gray-700 text-sm leading-relaxed mb-3">
+                        {result.diagnosis_details ||
+                          'The NVIDIA Nemotron vision model server is not running or unreachable at the configured URL.'}
+                      </p>
+                      <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg text-xs font-mono text-gray-800">
+                        # NVIDIA Nemotron AI Model is active:
+                        <br />
+                        <span className="text-primary font-bold">Configure NVIDIA_API_KEY in backend/.env for cloud NIM</span>
+                      </div>
+                    </div>
+
+                    <div className="p-4 bg-amber-100/70 rounded-xl border border-amber-200 text-amber-950 text-xs mb-6">
+                      <p className="font-semibold mb-0.5">Your data is safe:</p>
+                      The leaf image has been securely uploaded to Supabase Storage and stored in your garden history. You can click &quot;Retry Analysis&quot; below.
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4 border-t border-amber-200/60">
+                      <button
+                        onClick={() => handleRetryInference(result.id)}
+                        disabled={retryingId === result.id}
+                        className="bg-primary text-white font-bold px-6 py-2.5 rounded-xl shadow-xs hover:bg-primary-dark text-sm flex items-center justify-center gap-2 w-full sm:w-auto disabled:opacity-50 cursor-pointer"
+                      >
+                        <RefreshCw className={`w-4 h-4 ${retryingId === result.id ? 'animate-spin' : ''}`} />
+                        {retryingId === result.id ? 'Retrying Inference...' : 'Retry Analysis'}
+                      </button>
+                      <button
+                        onClick={reset}
+                        className="text-gray-700 font-medium hover:underline bg-white px-6 py-2.5 rounded-xl shadow-xs border border-gray-200 text-sm w-full sm:w-auto cursor-pointer"
+                      >
+                        Choose another image
+                      </button>
+                      <Link
+                        to={`/plants/${selectedPlantId}`}
+                        className="text-gray-700 font-medium bg-white px-6 py-2.5 rounded-xl shadow-xs border border-gray-200 text-sm flex items-center justify-center gap-1.5 w-full sm:w-auto"
+                      >
+                        View Plant <ArrowRight className="w-4 h-4" />
+                      </Link>
+                    </div>
                   </div>
-                </div>
+                )}
 
-                <div className="grid md:grid-cols-3 gap-4 mb-6">
-                  <ResultCard label="Disease Status" value={result.disease} />
-                  <ResultCard label="Confidence Score" value={result.confidence} />
-                  <ResultCard label="Model Assigned" value={result.model} color="text-emerald-700" />
-                </div>
+                {/* STATE 3: Inconclusive / Failed */}
+                {['inconclusive', 'failed'].includes(result.status) && (
+                  <div className="bg-gradient-to-br from-rose-50 to-orange-50 rounded-2xl p-6 md:p-8 border border-rose-200">
+                    <div className="flex items-center gap-3 mb-6">
+                      <div className="bg-rose-100 p-2.5 rounded-xl text-rose-700">
+                        <AlertCircle className="w-7 h-7" />
+                      </div>
+                      <div>
+                        <h2 className="text-2xl font-bold text-gray-900">Analysis Inconclusive</h2>
+                        <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-rose-200 text-rose-900 uppercase tracking-wider capitalize">
+                          Status: {result.status}
+                        </span>
+                      </div>
+                    </div>
 
-                <div className="mb-6 p-4 bg-white/80 rounded-xl border border-amber-100">
-                  <h3 className="text-sm font-bold text-gray-900 mb-1">Architecture & Analysis Notice</h3>
-                  <p className="text-gray-700 text-sm leading-relaxed">{result.description}</p>
-                </div>
+                    <div className="mb-6 p-4 bg-white/90 rounded-xl border border-rose-100">
+                      <h3 className="text-sm font-bold text-gray-900 mb-1">Details</h3>
+                      <p className="text-gray-700 text-sm leading-relaxed">
+                        {result.diagnosis_details ||
+                          'The vision model could not extract conclusive disease markers. Try taking a closer photo with natural lighting.'}
+                      </p>
+                    </div>
 
-                <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200 text-emerald-900 text-sm mb-6">
-                  <p className="font-semibold mb-1 flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Image Stored Successfully
-                  </p>
-                  <p className="text-xs text-emerald-800">
-                    Your photo is stored in Supabase Storage with audit records in PostgreSQL. Once Local LLaVA weights are connected in Phase 2, automated inference will immediately process queued plant records.
-                  </p>
-                </div>
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4 border-t border-rose-200/60">
+                      <button
+                        onClick={() => handleRetryInference(result.id)}
+                        disabled={retryingId === result.id}
+                        className="bg-primary text-white font-bold px-6 py-2.5 rounded-xl shadow-xs hover:bg-primary-dark text-sm flex items-center justify-center gap-2 w-full sm:w-auto disabled:opacity-50 cursor-pointer"
+                      >
+                        <RefreshCw className={`w-4 h-4 ${retryingId === result.id ? 'animate-spin' : ''}`} />
+                        Retry Analysis
+                      </button>
+                      <button
+                        onClick={reset}
+                        className="text-gray-700 font-medium hover:underline bg-white px-6 py-2.5 rounded-xl shadow-xs border border-gray-200 text-sm w-full sm:w-auto cursor-pointer"
+                      >
+                        Upload Clearer Photo
+                      </button>
+                    </div>
+                  </div>
+                )}
 
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4 border-t border-amber-200/60">
-                  <button
-                    onClick={reset}
-                    className="text-gray-700 font-medium hover:underline bg-white px-6 py-2.5 rounded-xl shadow-xs border border-gray-200 text-sm w-full sm:w-auto"
-                  >
-                    Analyze another image
-                  </button>
-                  {result.plantId && (
-                    <Link
-                      to={`/plants/${result.plantId}`}
-                      className="bg-primary text-white font-medium px-6 py-2.5 rounded-xl shadow-xs hover:bg-primary-dark text-sm flex items-center justify-center gap-2 w-full sm:w-auto"
-                    >
-                      <Leaf className="w-4 h-4" /> View Plant Details <ArrowRight className="w-4 h-4" />
-                    </Link>
-                  )}
-                </div>
+                {/* STATE 4: Pending / Processing */}
+                {['pending', 'processing'].includes(result.status) && (
+                  <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-6 md:p-8 border border-blue-200">
+                    <div className="flex items-center gap-3 mb-6">
+                      <div className="bg-blue-100 p-2.5 rounded-xl text-blue-700">
+                        <Clock className="w-7 h-7 animate-pulse" />
+                      </div>
+                      <div>
+                        <h2 className="text-2xl font-bold text-gray-900">Analysis In Progress</h2>
+                        <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-blue-200 text-blue-900 uppercase tracking-wider">
+                          Status: {result.status}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="mb-6 p-4 bg-white/90 rounded-xl border border-blue-100">
+                      <p className="text-gray-700 text-sm leading-relaxed">
+                        {result.diagnosis_details || 'Leaf image is queued in the NVIDIA Nemotron processing pipeline.'}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4 border-t border-blue-200/60">
+                      <button
+                        onClick={() => handleRetryInference(result.id)}
+                        disabled={retryingId === result.id}
+                        className="bg-primary text-white font-bold px-6 py-2.5 rounded-xl shadow-xs hover:bg-primary-dark text-sm flex items-center justify-center gap-2 w-full sm:w-auto disabled:opacity-50 cursor-pointer"
+                      >
+                        <RefreshCw className={`w-4 h-4 ${retryingId === result.id ? 'animate-spin' : ''}`} />
+                        Check Status Now
+                      </button>
+                      <button
+                        onClick={reset}
+                        className="text-gray-700 font-medium hover:underline bg-white px-6 py-2.5 rounded-xl shadow-xs border border-gray-200 text-sm w-full sm:w-auto cursor-pointer"
+                      >
+                        Analyze another image
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -264,7 +523,7 @@ export default function Diagnosis() {
 
 function ResultCard({ label, value, color = 'text-gray-900' }) {
   return (
-    <div className="bg-white p-4 rounded-xl border border-amber-100 shadow-xs">
+    <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-xs">
       <p className="text-xs text-gray-500 font-medium mb-1">{label}</p>
       <p className={`text-base font-bold ${color}`}>{value}</p>
     </div>

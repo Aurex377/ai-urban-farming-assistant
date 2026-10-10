@@ -1,5 +1,5 @@
-from typing import Optional, Dict, Any
-from pydantic import BaseModel
+from typing import Optional, Dict, Any, List
+from pydantic import BaseModel, ConfigDict
 
 
 class DiagnosisRequest(BaseModel):
@@ -13,6 +13,8 @@ class DiagnosisCreate(BaseModel):
 
 
 class DiagnosisResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     plant_id: int
     user_id: Optional[str] = None
@@ -23,7 +25,7 @@ class DiagnosisResponse(BaseModel):
     confidence: Optional[float] = 0.0
     confidence_score: Optional[float] = 0.0
     severity: Optional[str] = None
-    model_name: Optional[str] = "Local LLaVA Plant Disease 7B"
+    model_name: Optional[str] = "NVIDIA Nemotron"
     raw_result: Optional[Dict[str, Any]] = None
     diagnosis_details: Optional[str] = None
     created_at: Optional[str] = None
@@ -31,8 +33,23 @@ class DiagnosisResponse(BaseModel):
     diagnosed_at: Optional[str] = None
     message: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+
+class LLaVAModelStatusResponse(BaseModel):
+    available: bool
+    status: str  # 'online' | 'offline'
+    model_name: str
+    model_loaded: Optional[bool] = False
+    engine: Optional[str] = "NVIDIA Nemotron"
+    message: str
+
+
+class NVIDIAStatusResponse(BaseModel):
+    available: bool
+    status: str
+    model_name: str
+    engine: str
+    cloud_api_configured: bool
+    message: str
 
 
 class CareRecommendationCreate(BaseModel):
@@ -42,6 +59,8 @@ class CareRecommendationCreate(BaseModel):
 
 
 class CareRecommendationResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     plant_id: int
     diagnosis_id: Optional[int] = None
@@ -49,5 +68,29 @@ class CareRecommendationResponse(BaseModel):
     priority: Optional[str] = "medium"
     created_at: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+
+class PersonalizedCareGuidanceResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    plant_id: int
+    plant_name: str
+    species: Optional[str] = None
+    active_diagnosis: str
+    is_healthy: bool
+    severity: str
+    priority: str
+    summary: Optional[str] = None
+    personalized_explanation: str
+    immediate_next_steps: List[str]
+    personalized_treatment_explanation: str
+    watering_explanation: str
+    prevention_guidance: str
+    monitoring_instructions: str
+    next_scan_recommendation: str
+    plant_coach_educational_guidance: str
+    expert_help_conditions: str
+    deterministic_watering: Optional[Dict[str, Any]] = None
+    model_name: str = "NVIDIA Nemotron"
+    engine: Optional[str] = None
+    generated_at: Optional[str] = None
+    care_recommendation_id: Optional[int] = None

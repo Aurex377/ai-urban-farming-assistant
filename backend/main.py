@@ -44,6 +44,9 @@ try:
     from backend.routes.watering import router as watering_router
     from backend.routes.weather import router as weather_router
     from backend.routes.activities import router as activities_router
+    from backend.routes.timeline import router as timeline_router
+    from backend.routes.notifications import router as notifications_router
+    from backend.routes.warnings import router as warnings_router
 except ImportError:
     from routes.users import router as users_router
     from routes.plants import router as plants_router
@@ -53,6 +56,9 @@ except ImportError:
     from routes.watering import router as watering_router
     from routes.weather import router as weather_router
     from routes.activities import router as activities_router
+    from routes.timeline import router as timeline_router
+    from routes.notifications import router as notifications_router
+    from routes.warnings import router as warnings_router
 
 # Initialize FastAPI App
 app = FastAPI(
@@ -148,6 +154,9 @@ app.include_router(care_router)
 app.include_router(watering_router)
 app.include_router(weather_router)
 app.include_router(activities_router)
+app.include_router(timeline_router)
+app.include_router(notifications_router)
+app.include_router(warnings_router)
 
 
 @app.get("/plants", tags=["Plants"])

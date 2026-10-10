@@ -152,3 +152,33 @@ def test_reject_unauthorized_plant_access():
     # Attempting to access non-existent plant returns 404
     res = client.get("/api/plants/999999999")
     assert res.status_code == 404
+
+
+if __name__ == "__main__":
+    tests = [
+        test_health_endpoint,
+        test_database_health_endpoint,
+        test_create_plant_invalid_payload,
+        test_plant_crud_lifecycle,
+        test_reject_unauthorized_plant_access,
+    ]
+    passed = 0
+    failed = 0
+    print("=" * 60)
+    print("RUNNING GROWWISE AI — PHASE 1 TEST SUITE")
+    print("=" * 60)
+    for test in tests:
+        name = test.__name__
+        try:
+            test()
+            print(f"[PASS] {name}")
+            passed += 1
+        except Exception as exc:
+            print(f"[FAIL] {name}: {exc}")
+            failed += 1
+
+    print("=" * 60)
+    print(f"RESULTS: {passed} PASSED, {failed} FAILED")
+    print("=" * 60)
+    if failed > 0:
+        exit(1)

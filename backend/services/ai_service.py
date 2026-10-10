@@ -1,45 +1,72 @@
 """
-AI Service Module
------------------
-Placeholder service architecture for AI Plant Disease Diagnosis.
-
-IMPORTANT RULES & GUIDELINES:
-- DO NOT return simulated fake diseases and present them as genuine AI results.
-- This module defines the exact interface and schema ready to be connected
-  to your real plant disease detection model (e.g., PyTorch, TensorFlow, or Gemini Vision).
-- Once your model is trained or external inference API is ready, plug the logic
-  into `run_plant_disease_diagnosis()`.
+AI Service Module — Phase 2
+---------------------------
+Connects the local LLaVA plant disease vision model to the diagnosis workflow.
 """
 
 from typing import Dict, Any, Optional
+import httpx
+
+try:
+    from backend.services.nvidia_nemotron_service import (
+        analyze_leaf_with_nvidia,
+        check_nvidia_availability,
+    )
+    from backend.services.llava_service import (
+        analyze_leaf_with_llava,
+        check_llava_availability,
+    )
+except ImportError:
+    from services.nvidia_nemotron_service import (
+        analyze_leaf_with_nvidia,
+        check_nvidia_availability,
+    )
+    from services.llava_service import (
+        analyze_leaf_with_llava,
+        check_llava_availability,
+    )
 
 
 async def run_plant_disease_diagnosis(
     image_url: str,
-    plant_info: Optional[Dict[str, Any]] = None
+    plant_info: Optional[Dict[str, Any]] = None,
+    image_bytes: Optional[bytes] = None
 ) -> Dict[str, Any]:
     """
-    Placeholder AI inference function for plant disease diagnosis.
-
-    ARCHITECTURE HOOK:
-    When you are ready to connect your real AI model:
-    1. Download image bytes using httpx from `image_url`
-    2. Preprocess leaf image (resize to 224x224, normalize RGB)
-    3. Run forward pass through your model:
-       - model.predict(tensor)
-    4. Extract top predicted disease class, confidence score, and symptom details.
-
-    CURRENT BEHAVIOR:
-    Returns an honest, pending-status response so that backend flow and DB storage
-    are tested cleanly without misleading fake medical/agricultural claims.
+    Executes plant disease diagnosis via NVIDIA Nemotron Multimodal Vision Model.
+    If image_bytes is not provided directly, attempts to download from image_url.
     """
-    return {
-        "disease_name": "Pending AI Model Integration",
-        "confidence": 0.0,
-        "diagnosis_details": (
-            "Image validated and queued for diagnosis. "
-            "Real machine learning model is ready to be plugged in via backend/services/ai_service.py."
-        ),
-        "status": "placeholder",
-        "image_url_processed": image_url,
-    }
+    plant_info = plant_info or {}
+    plant_name = plant_info.get("name") or plant_info.get("plant_name")
+    species = plant_info.get("species")
+
+    # If image bytes were not provided, fetch them from the signed/direct URL
+    if not image_bytes and image_url:
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                res = await client.get(image_url)
+                if res.status_code == 200:
+                    image_bytes = res.content
+        except Exception:
+            pass
+
+    if not image_bytes:
+        return {
+            "status": "failed",
+            "disease_name": "Image Fetch Error",
+            "confidence": 0.0,
+            "confidence_score": 0.0,
+            "severity": None,
+            "symptoms": None,
+            "diagnosis_details": "Unable to retrieve image bytes for analysis.",
+            "model_name": "NVIDIA Nemotron",
+            "raw_result": {"error": "missing_image_bytes"},
+            "is_healthy": None,
+        }
+
+    return await analyze_leaf_with_nvidia(
+        image_bytes=image_bytes,
+        plant_name=plant_name,
+        species=species
+    )
+
