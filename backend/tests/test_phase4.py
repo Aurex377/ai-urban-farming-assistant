@@ -201,8 +201,31 @@ def test_deterministic_fallback_diseased_plant():
 @pytest.mark.asyncio
 async def test_generate_personalized_guidance_pipeline():
     """Verify full generate_personalized_guidance pipeline runs smoothly without external network dependency."""
+    from unittest.mock import patch, AsyncMock, MagicMock
     mock_context = get_mock_context(is_healthy=True)
-    res = await generate_personalized_guidance(mock_context, plant_id=1, supabase=None)
+    mock_res = MagicMock()
+    mock_res.status_code = 200
+    mock_res.json.return_value = {
+        "choices": [{
+            "message": {
+                "content": json.dumps({
+                    "personalized_explanation": "Sweet Basil is flourishing with balanced vigor.",
+                    "immediate_next_steps": ["Inspect leaf margins", "Aerated root zone"],
+                    "personalized_treatment_explanation": "Continue standard organic vitality regimen.",
+                    "watering_explanation": "Provide 220 ml irrigation to sustain vegetative growth.",
+                    "prevention_guidance": "Maintain good container airflow.",
+                    "monitoring_instructions": "Check foliage every 48 hours.",
+                    "next_scan_recommendation": "Scan in 3 days in daylight.",
+                    "plant_coach_educational_guidance": "Pinching basil tops promotes bushier growth.",
+                    "expert_help_conditions": "Seek help if stem collapse develops.",
+                    "priority": "routine",
+                    "summary": "Basil in peak condition under organic routine."
+                })
+            }
+        }]
+    }
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock, return_value=mock_res):
+        res = await generate_personalized_guidance(mock_context, plant_id=1, supabase=None)
 
     assert res["plant_id"] == 1
     assert res["plant_name"] == "Sweet Basil"

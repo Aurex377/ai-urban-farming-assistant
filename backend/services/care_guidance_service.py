@@ -171,6 +171,76 @@ CARE_PROTOCOLS = {
         ],
         "environmental_adjustments": "Avoid hot, dry microclimates; improve air moisture."
     },
+    "citrus greening": {
+        "condition_name": "Citrus Greening / Huanglongbing (Candidatus Liberibacter asiaticus)",
+        "category": "Bacterial Infection (Vector-Borne)",
+        "urgency": "high",
+        "immediate_actions": [
+            "Inspect shoot flushes for Asian citrus psyllid vectors and isolate tree from surrounding citrus specimens.",
+            "Prune declining or dead branch tips using shears disinfected with 70% isopropyl alcohol.",
+            "Apply foliar micronutrient spray containing chelated zinc, iron, and manganese to counteract phloem nutrient blockages."
+        ],
+        "approved_treatments": [
+            "Apply cold-pressed organic neem oil (0.5%-1.0%) or horticultural mineral oil to suppress psyllid nymphs.",
+            "Provide regular supplemental micronutrient feedings (chelated iron, zinc, manganese) to sustain foliar vigor.",
+            "Apply biological bio-stimulant or mycorrhizal root inoculants to enhance root nutrient absorption."
+        ],
+        "cultural_preventions": [
+            "Ensure container substrate is well-drained with balanced organic matter; avoid root waterlogging.",
+            "Monitor new flush leaves weekly for asymmetric yellow mottling across leaf veins.",
+            "Maintain adequate spacing around tree canopy for generous sunlight penetration."
+        ],
+        "prohibited_actions": [
+            "Do not transport infected citrus plants across quarantined agricultural zones.",
+            "Do not apply harsh unapproved synthetic chemicals without professional diagnostic verification.",
+            "Do not overwater root zone when vascular transport is compromised."
+        ],
+        "environmental_adjustments": "Position in full sun (at least 6-8 hours daily); protect from waterlogged soil and freezing drafts."
+    },
+    "bacterial spot": {
+        "condition_name": "Bacterial Leaf Spot (Xanthomonas spp.)",
+        "category": "Bacterial Foliar Disease",
+        "urgency": "high",
+        "immediate_actions": [
+            "Remove and safely discard severely affected leaves with water-soaked lesions or yellow halos.",
+            "Sanitize pruning shears with 70% alcohol between cuts.",
+            "Cease all overhead watering immediately; irrigate strictly at the soil collar."
+        ],
+        "approved_treatments": [
+            "Apply approved fixed copper bactericide / fungicide during cool early morning hours.",
+            "Apply biological bactericide (Bacillus subtilis) to colonize leaf surface and suppress bacterial spread."
+        ],
+        "cultural_preventions": [
+            "Ensure wide spacing between containers for maximum laminar canopy airflow.",
+            "Apply clean organic mulch around container base to prevent water-splash from potting medium."
+        ],
+        "prohibited_actions": [
+            "Do not work with plants or prune when foliage is wet from rain or dew.",
+            "Do not apply high nitrogen fertilizer which creates soft, vulnerable leaf tissue."
+        ],
+        "environmental_adjustments": "Position in full sun and well-ventilated outdoor setting to accelerate canopy drying."
+    },
+    "chlorosis": {
+        "condition_name": "Nutrient Deficiency & Foliar Chlorosis (Iron / Micronutrient)",
+        "category": "Abiotic / Nutritional Stress",
+        "urgency": "medium",
+        "immediate_actions": [
+            "Check soil pH; alkaline soil (pH > 7.0) often binds iron and prevents root uptake.",
+            "Ensure potting container has free drainage and soil is not compacted or waterlogged."
+        ],
+        "approved_treatments": [
+            "Apply chelated iron (Fe-EDDHA or Fe-EDTA) as a gentle soil drench or foliar spray.",
+            "Top-dress container with rich organic compost or acidic peat moss to buffer root pH."
+        ],
+        "cultural_preventions": [
+            "Use balanced organic fertilizer with micronutrients every 3-4 weeks during active growth.",
+            "Flush container soil with clean rainwater if hard tap water has caused salt buildup."
+        ],
+        "prohibited_actions": [
+            "Do not misdiagnose nutritional chlorosis as a fungal disease and apply unnecessary fungicides."
+        ],
+        "environmental_adjustments": "Maintain optimal root zone aeration and avoid saturated anaerobic soil."
+    },
     "healthy": {
         "condition_name": "Healthy Plant Maintenance Protocol",
         "category": "Optimal Growth & Preventive Care",
@@ -293,16 +363,22 @@ def get_approved_care_guidance(
     d_clean = disease_name.lower()
 
     # 3. Known Supported Clinical Pathogens
-    if "early blight" in d_clean:
+    if "greening" in d_clean or "huanglongbing" in d_clean:
+        protocol = CARE_PROTOCOLS["citrus greening"]
+    elif "early blight" in d_clean:
         protocol = CARE_PROTOCOLS["early blight"]
     elif "late blight" in d_clean:
         protocol = CARE_PROTOCOLS["late blight"]
     elif "powdery mildew" in d_clean:
         protocol = CARE_PROTOCOLS["powdery mildew"]
+    elif "bacterial spot" in d_clean:
+        protocol = CARE_PROTOCOLS["bacterial spot"]
     elif "leaf spot" in d_clean or "septoria" in d_clean:
         protocol = CARE_PROTOCOLS["leaf spot"]
     elif "rot" in d_clean or "pythium" in d_clean or "overwater" in d_clean:
         protocol = CARE_PROTOCOLS["root rot"]
+    elif "chlorosis" in d_clean or "nutrient" in d_clean or "iron def" in d_clean:
+        protocol = CARE_PROTOCOLS["chlorosis"]
     elif "aphid" in d_clean:
         protocol = CARE_PROTOCOLS["aphids"]
     elif "mite" in d_clean:

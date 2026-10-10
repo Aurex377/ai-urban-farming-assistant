@@ -41,9 +41,52 @@ def get_current_user_id() -> str:
     return os.getenv("DEV_USER_ID", DEFAULT_DEV_USER).strip() or DEFAULT_DEV_USER
 
 
-def normalize_plant(row: Dict[str, Any]) -> Dict[str, Any]:
-    """Ensures plant dictionary conforms to PlantResponse."""
+def normalize_plant(row: Dict[str, Any], latest_diag: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Ensures plant dictionary conforms to PlantResponse with attached latest diagnosis."""
     name = row.get("name") or row.get("plant_name") or "Unnamed Plant"
+    health_status = row.get("health_status") or "healthy"
+    health_score = float(row["health_score"]) if row.get("health_score") is not None else 100.0
+
+    diag_summary = None
+    if latest_diag:
+        diag_id = latest_diag.get("id")
+        disease_name = latest_diag.get("disease_name") or "Healthy Plant Leaf"
+        current_status = latest_diag.get("status") or "completed"
+        conf = float(latest_diag.get("confidence") or latest_diag.get("confidence_score") or 0.0)
+        sev = latest_diag.get("severity") or "none"
+        sym = latest_diag.get("symptoms")
+        diag_date = str(latest_diag.get("diagnosed_at") or latest_diag.get("created_at") or "")
+        model = latest_diag.get("model_name")
+
+        diag_summary = {
+            "id": diag_id,
+            "disease_name": disease_name,
+            "status": current_status,
+            "confidence": conf if conf > 0 else None,
+            "severity": sev,
+            "symptoms": sym,
+            "diagnosed_at": diag_date,
+            "model_name": model,
+        }
+
+        if current_status == "completed":
+            if "healthy" in disease_name.lower():
+                health_status = "healthy"
+                health_score = 98.0
+            else:
+                if sev in ("high", "urgent", "critical"):
+                    health_status = "critical"
+                    health_score = 35.0
+                elif sev == "medium":
+                    health_status = "needs_attention"
+                    health_score = 55.0
+                else:
+                    health_status = "needs_attention"
+                    health_score = 75.0
+        elif current_status in ("uncertain", "inconclusive"):
+            health_status = "needs_attention"
+            health_score = 80.0
+
     return {
         "id": row["id"],
         "user_id": str(row.get("user_id") or get_current_user_id()),
@@ -54,14 +97,15 @@ def normalize_plant(row: Dict[str, Any]) -> Dict[str, Any]:
         "variety": row.get("variety"),
         "planted_date": str(row["planted_date"]) if row.get("planted_date") else None,
         "location": row.get("location"),
-        "health_status": row.get("health_status") or "healthy",
-        "health_score": float(row["health_score"]) if row.get("health_score") is not None else 100.0,
+        "health_status": health_status,
+        "health_score": health_score,
         "last_watered_at": str(row["last_watered_at"]) if row.get("last_watered_at") else None,
         "next_watering_at": str(row["next_watering_at"]) if row.get("next_watering_at") else None,
         "notes": row.get("notes"),
         "garden_zone_id": row.get("garden_zone_id"),
         "created_at": str(row.get("created_at") or ""),
         "updated_at": str(row.get("updated_at") or row.get("created_at") or "") or None,
+        "latest_diagnosis": diag_summary,
     }
 
 
@@ -160,6 +204,7 @@ def get_plants(
 ):
     """
     Get all plants. Optionally filter by user_id.
+    Includes latest diagnosis for each plant.
     """
     try:
         query = supabase.table("plants").select("*")
@@ -167,7 +212,21 @@ def get_plants(
             query = query.eq("user_id", user_id)
         response = query.order("id", desc=True).execute()
         rows = response.data or []
-        return [normalize_plant(r) for r in rows]
+
+        # Best-effort fetch latest diagnoses map for all returned plants
+        diag_map = {}
+        if rows:
+            try:
+                plant_ids = [r["id"] for r in rows]
+                diag_res = supabase.table("diagnoses").select("*").in_("plant_id", plant_ids).order("id", desc=True).execute()
+                for d in (diag_res.data or []):
+                    pid = d.get("plant_id")
+                    if pid not in diag_map:
+                        diag_map[pid] = d
+            except Exception:
+                pass
+
+        return [normalize_plant(r, latest_diag=diag_map.get(r["id"])) for r in rows]
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -183,7 +242,7 @@ def get_plant_by_id(
     supabase: Client = Depends(get_supabase)
 ):
     """
-    Get a single plant by plant_id.
+    Get a single plant by plant_id with its latest diagnosis attached.
     """
     try:
         response = supabase.table("plants").select("*").eq("id", plant_id).execute()
@@ -194,7 +253,16 @@ def get_plant_by_id(
             )
         plant_data = response.data[0]
         verify_plant_ownership(plant_data, user_id or get_current_user_id())
-        return normalize_plant(plant_data)
+
+        latest_diag = None
+        try:
+            diag_res = supabase.table("diagnoses").select("*").eq("plant_id", plant_id).order("id", desc=True).limit(1).execute()
+            if diag_res.data:
+                latest_diag = diag_res.data[0]
+        except Exception:
+            pass
+
+        return normalize_plant(plant_data, latest_diag=latest_diag)
     except HTTPException:
         raise
     except Exception as exc:

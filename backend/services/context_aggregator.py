@@ -179,10 +179,17 @@ def assemble_plant_recommendation_context(
         "uncertainty_note": "Plant has not undergone AI leaf pathology screening.",
     }
 
-    if latest_diagnosis:
-        diag_status = latest_diagnosis.get("status", "completed")
-        d_name = latest_diagnosis.get("disease_name", "")
-        conf = float(latest_diagnosis.get("confidence") or latest_diagnosis.get("confidence_score") or 0.0)
+    effective_diagnosis = latest_diagnosis
+    if latest_diagnosis and latest_diagnosis.get("status") in ("pending", "processing"):
+        for h in history:
+            if h.get("status") in ("completed", "uncertain", "inconclusive", "failed", "model_unavailable"):
+                effective_diagnosis = h
+                break
+
+    if effective_diagnosis:
+        diag_status = effective_diagnosis.get("status", "completed")
+        d_name = effective_diagnosis.get("disease_name", "")
+        conf = float(effective_diagnosis.get("confidence") or effective_diagnosis.get("confidence_score") or 0.0)
 
         if diag_status in ("uncertain", "inconclusive"):
             disease_status = {
@@ -191,10 +198,10 @@ def assemble_plant_recommendation_context(
                 "disease_name": d_name or "Inconclusive Observation",
                 "status": "uncertain",
                 "confidence": conf if conf > 0 else None,
-                "severity": latest_diagnosis.get("severity") or "low",
-                "symptoms": latest_diagnosis.get("symptoms") or "Ambiguous or minor foliar marks",
-                "diagnosed_at": latest_diagnosis.get("diagnosed_at") or latest_diagnosis.get("created_at"),
-                "model_used": latest_diagnosis.get("model_name"),
+                "severity": effective_diagnosis.get("severity") or "low",
+                "symptoms": effective_diagnosis.get("symptoms") or "Ambiguous or minor foliar marks",
+                "diagnosed_at": effective_diagnosis.get("diagnosed_at") or effective_diagnosis.get("created_at"),
+                "model_used": effective_diagnosis.get("model_name"),
                 "uncertainty_note": "Visual symptoms do not definitively match verified pathogen criteria. Safe non-chemical observation recommended.",
             }
         elif diag_status in ("failed", "model_unavailable"):
@@ -207,8 +214,21 @@ def assemble_plant_recommendation_context(
                 "severity": "none",
                 "symptoms": "Diagnostic inference was not completed.",
                 "diagnosed_at": None,
-                "model_used": latest_diagnosis.get("model_name"),
+                "model_used": effective_diagnosis.get("model_name"),
                 "uncertainty_note": "Model was unavailable during last scan attempt. No confirmed disease.",
+            }
+        elif diag_status in ("pending", "processing"):
+            disease_status = {
+                "has_active_disease": None,
+                "is_healthy": None,
+                "disease_name": "AI Vision Analysis In Progress",
+                "status": "pending",
+                "confidence": None,
+                "severity": "none",
+                "symptoms": "Foliar image is queued or undergoing neural inference.",
+                "diagnosed_at": None,
+                "model_used": effective_diagnosis.get("model_name") or "NVIDIA Nemotron",
+                "uncertainty_note": "Diagnosis currently processing in background.",
             }
         elif diag_status == "completed":
             is_healthy = "healthy" in d_name.lower() or conf < 0.2
@@ -218,10 +238,10 @@ def assemble_plant_recommendation_context(
                 "disease_name": d_name if not is_healthy else "Healthy Plant Leaf",
                 "status": "confirmed",
                 "confidence": conf,
-                "severity": latest_diagnosis.get("severity") or ("none" if is_healthy else "medium"),
-                "symptoms": latest_diagnosis.get("symptoms") or ("Clear healthy leaf surface" if is_healthy else "Visible lesions"),
-                "diagnosed_at": latest_diagnosis.get("diagnosed_at") or latest_diagnosis.get("created_at"),
-                "model_used": latest_diagnosis.get("model_name") or "NVIDIA Nemotron",
+                "severity": effective_diagnosis.get("severity") or ("none" if is_healthy else "medium"),
+                "symptoms": effective_diagnosis.get("symptoms") or ("Clear healthy leaf surface" if is_healthy else "Visible lesions"),
+                "diagnosed_at": effective_diagnosis.get("diagnosed_at") or effective_diagnosis.get("created_at"),
+                "model_used": effective_diagnosis.get("model_name") or "NVIDIA Nemotron",
                 "uncertainty_note": None if not is_healthy else "Confirmed healthy leaf vigor.",
             }
 

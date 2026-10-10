@@ -210,9 +210,44 @@ export default function Plants() {
                       </span>
                     )}
                   </div>
-                  <p className="text-sm text-gray-500 italic mb-4">
+                  <p className="text-sm text-gray-500 italic mb-3">
                     {plant.species || 'Species not specified'}
                   </p>
+
+                  {/* AI Diagnosis Status Pill */}
+                  <div className="mb-4">
+                    {plant.latest_diagnosis ? (
+                      plant.latest_diagnosis.status === 'completed' ? (
+                        plant.latest_diagnosis.disease_name.toLowerCase().includes('healthy') ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                            Healthy (AI Verified)
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-800 border border-rose-200" title={plant.latest_diagnosis.symptoms || ''}>
+                            <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
+                            {plant.latest_diagnosis.disease_name}
+                            {plant.latest_diagnosis.confidence && ` (${Math.round(plant.latest_diagnosis.confidence * 100)}%)`}
+                          </span>
+                        )
+                      ) : ['uncertain', 'inconclusive'].includes(plant.latest_diagnosis.status) ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                          <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                          Inconclusive Scan
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200">
+                          <span className="w-2 h-2 rounded-full bg-blue-500 animate-spin"></span>
+                          AI Analysis Running...
+                        </span>
+                      )
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-50 text-gray-600 border border-gray-200">
+                        <span className="w-2 h-2 rounded-full bg-gray-400"></span>
+                        No Diagnosis Yet
+                      </span>
+                    )}
+                  </div>
 
                   <div className="mt-auto pt-4 border-t border-gray-100 flex justify-between items-center text-xs text-gray-500">
                     {plant.planted_date ? (

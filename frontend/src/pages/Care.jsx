@@ -74,21 +74,34 @@ export default function Care() {
   useEffect(() => {
     if (!selectedPlantId) return;
 
+    let isCurrent = true;
+    setPersonalizedCare(null); // Clear previous plant's personalized care immediately to prevent showing previous plant's guidance
+    setPersonalizingLoading(true);
+    setPersonalizingError(null);
+
     async function loadPlantCare() {
-      setPersonalizingLoading(true);
-      setPersonalizingError(null);
       try {
         const data = await getPersonalizedCare(selectedPlantId, true);
-        setPersonalizedCare(data);
+        if (isCurrent) {
+          setPersonalizedCare(data);
+        }
       } catch (err) {
-        console.error('Error loading plant personalized care:', err);
-        setPersonalizingError(err.message || 'Unable to load personalized guidance.');
+        if (isCurrent) {
+          console.error('Error loading plant personalized care:', err);
+          setPersonalizingError(err.message || 'Unable to load personalized guidance.');
+        }
       } finally {
-        setPersonalizingLoading(false);
+        if (isCurrent) {
+          setPersonalizingLoading(false);
+        }
       }
     }
 
     loadPlantCare();
+
+    return () => {
+      isCurrent = false;
+    };
   }, [selectedPlantId]);
 
   const handleRegenerateCare = async () => {

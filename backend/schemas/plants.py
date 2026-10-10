@@ -48,6 +48,17 @@ class PlantUpdate(BaseModel):
         return self
 
 
+class LatestDiagnosisSummary(BaseModel):
+    id: int
+    disease_name: str
+    status: str
+    confidence: Optional[float] = None
+    severity: Optional[str] = None
+    symptoms: Optional[str] = None
+    diagnosed_at: Optional[str] = None
+    model_name: Optional[str] = None
+
+
 class PlantResponse(BaseModel):
     id: int
     user_id: str
@@ -66,6 +77,7 @@ class PlantResponse(BaseModel):
     garden_zone_id: Optional[int] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
+    latest_diagnosis: Optional[LatestDiagnosisSummary] = None
 
     class Config:
         from_attributes = True

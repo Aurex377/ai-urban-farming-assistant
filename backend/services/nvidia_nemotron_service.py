@@ -164,15 +164,29 @@ def extract_json_from_text(text: str) -> Dict[str, Any]:
     markdown code blocks, trailing commentary, or preamble.
     """
     cleaned = text.strip()
-    cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
-    cleaned = re.sub(r"\s*```$", "", cleaned)
 
-    match = re.search(r"(\{.*\})", cleaned, re.DOTALL)
-    if match:
-        candidate = match.group(1).strip()
-        return json.loads(candidate)
+    # 1. Try markdown fenced block first
+    md_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", cleaned, re.DOTALL)
+    if md_match:
+        try:
+            return json.loads(md_match.group(1).strip())
+        except Exception:
+            pass
 
-    return json.loads(cleaned)
+    # 2. Try outermost curly braces {...}
+    first_brace = cleaned.find("{")
+    last_brace = cleaned.rfind("}")
+    if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
+        candidate = cleaned[first_brace:last_brace + 1].strip()
+        try:
+            return json.loads(candidate)
+        except Exception:
+            pass
+
+    # 3. Strip outer backticks if present and parse
+    cleaned_no_ticks = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
+    cleaned_no_ticks = re.sub(r"\s*```$", "", cleaned_no_ticks).strip()
+    return json.loads(cleaned_no_ticks)
 
 
 # ====================================================================
@@ -559,7 +573,7 @@ async def generate_personalized_guidance(
                 ],
                 "temperature": 0.2,
                 "top_p": 0.9,
-                "max_tokens": 1500,
+                "max_tokens": 3000,
             }
 
             async with httpx.AsyncClient(timeout=cfg["timeout"]) as client:

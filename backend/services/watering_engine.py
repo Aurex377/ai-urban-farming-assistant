@@ -28,6 +28,36 @@ SPECIES_WATER_BASELINE_ML: Dict[str, float] = {
 }
 SPECIES_BASELINES = SPECIES_WATER_BASELINE_ML
 
+# Granular species-specific baselines (base_ml, ideal_interval_days, display_name)
+SPECIES_SPECIFIC_BASELINES: Dict[str, Tuple[float, int, str]] = {
+    "tomato": (480.0, 1, "Tomato"),
+    "solanum lycopersicum": (480.0, 1, "Tomato"),
+    "citrus": (560.0, 2, "Citrus"),
+    "lemon": (540.0, 2, "Lemon"),
+    "citrus limon": (540.0, 2, "Lemon"),
+    "orange": (560.0, 2, "Orange"),
+    "pepper": (420.0, 1, "Pepper"),
+    "capsicum": (420.0, 1, "Pepper"),
+    "chili": (390.0, 1, "Chili"),
+    "basil": (240.0, 2, "Basil"),
+    "ocimum basilicum": (240.0, 2, "Basil"),
+    "mint": (280.0, 1, "Mint"),
+    "rosemary": (160.0, 3, "Rosemary"),
+    "thyme": (140.0, 3, "Thyme"),
+    "lettuce": (350.0, 1, "Lettuce"),
+    "spinach": (320.0, 1, "Spinach"),
+    "strawberry": (380.0, 1, "Strawberry"),
+    "cucumber": (500.0, 1, "Cucumber"),
+    "monstera": (320.0, 4, "Monstera"),
+    "pothos": (200.0, 4, "Pothos"),
+    "snake plant": (100.0, 10, "Snake Plant"),
+    "sansevieria": (100.0, 10, "Snake Plant"),
+    "succulent": (80.0, 10, "Succulent"),
+    "cactus": (60.0, 14, "Cactus"),
+    "orchid": (150.0, 7, "Orchid"),
+    "rose": (420.0, 2, "Rose"),
+}
+
 # Watering Interval (days between watering) under moderate baseline conditions
 SPECIES_INTERVAL_DAYS: Dict[str, int] = {
     "vegetable": 1,
@@ -88,10 +118,32 @@ def calculate_watering_recommendation(
     Returns structured recommendation context for display and future Nemotron handoff.
     """
     plant_type = (plant.get("plant_type") or "vegetable").lower()
-    base_volume = SPECIES_WATER_BASELINE_ML.get(plant_type, 300.0)
-    ideal_interval = SPECIES_INTERVAL_DAYS.get(plant_type, 2)
+    species_input = f"{plant.get('species') or ''} {plant.get('name') or ''} {plant.get('variety') or ''}".lower()
 
-    # 1. Growth Stage Multiplier
+    # Search for specific species baseline
+    matched_species_key = None
+    matched_species_name = None
+    for k, v in SPECIES_SPECIFIC_BASELINES.items():
+        if k in species_input:
+            matched_species_key = k
+            base_volume = v[0]
+            ideal_interval = v[1]
+            matched_species_name = v[2]
+            break
+
+    if not matched_species_key:
+        base_volume = SPECIES_WATER_BASELINE_ML.get(plant_type, 300.0)
+        ideal_interval = SPECIES_INTERVAL_DAYS.get(plant_type, 2)
+
+    # 1. Container / Pot Size Scaling
+    pot_size = float(plant.get("pot_size_liters") or plant.get("container_volume_liters") or 0.0)
+    if pot_size > 0.0:
+        # Standard baseline is 7.5L container. Small pots dry quickly; large containers hold more.
+        pot_multiplier = min(2.5, max(0.4, (pot_size / 7.5) ** 0.55))
+    else:
+        pot_multiplier = 1.0
+
+    # 2. Growth Stage Multiplier
     planted_date = plant.get("planted_date")
     age_days, stage = calculate_plant_age_and_stage(planted_date)
     stage_multiplier = {
@@ -190,7 +242,7 @@ def calculate_watering_recommendation(
             days_since_watered = 1
 
     # 6. Calculate Final Volume
-    calculated_volume = base_volume * stage_multiplier * sunlight_multiplier * weather_multiplier * disease_multiplier
+    calculated_volume = base_volume * stage_multiplier * sunlight_multiplier * weather_multiplier * disease_multiplier * pot_multiplier
     # Round to nearest 10 ml
     recommended_ml = max(50.0, round(calculated_volume / 10.0) * 10.0)
 
@@ -230,14 +282,20 @@ def calculate_watering_recommendation(
 
     # Construct Clear Reason Summary
     reasons = []
+    species_tag = matched_species_name or plant_type.capitalize()
     if is_indoor:
-        reasons.append(f"Indoor {plant_type.capitalize()} in {stage} stage with {sunlight.replace('_', ' ')} exposure.")
+        reasons.append(f"Indoor {species_tag} in {stage} stage with {sunlight.replace('_', ' ')} exposure.")
     else:
-        reasons.append(f"Outdoor {plant_type.capitalize()} ({stage} stage, {sunlight.replace('_', ' ')}).")
+        reasons.append(f"Outdoor {species_tag} ({stage} stage, {sunlight.replace('_', ' ')}).")
         if weather_available:
             reasons.append(f"Ambient weather: {temp}°C, {humidity}% humidity.")
         else:
-            reasons.append("Ambient weather: Telemetry unavailable.")
+            reasons.append("Ambient weather: Telemetry unavailable (baseline applied).")
+
+    if pot_size > 0.0:
+        reasons.append(f"Container scale: {pot_size}L volume ({pot_multiplier:.2f}x).")
+    else:
+        reasons.append("Container scale: Standard 7.5L container assumed.")
 
     if weather_notes:
         reasons.extend(weather_notes)
@@ -256,11 +314,13 @@ def calculate_watering_recommendation(
         "plant_age_days": age_days,
         "growth_stage": stage,
         "base_volume_ml": base_volume,
+        "matched_species": matched_species_name,
         "multipliers": {
             "stage": stage_multiplier,
             "sunlight": sunlight_multiplier,
             "weather": weather_multiplier,
             "disease": disease_multiplier,
+            "container": round(pot_multiplier, 2),
         },
         "skip_reason": skip_reason,
     }

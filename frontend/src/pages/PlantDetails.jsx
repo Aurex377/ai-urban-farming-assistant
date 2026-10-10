@@ -178,6 +178,19 @@ export default function PlantDetails() {
     }
   };
 
+  // Reset all plant-specific states immediately when route ID changes to prevent stale cross-plant state
+  useEffect(() => {
+    setPlant(null);
+    setImages([]);
+    setDiagnoses([]);
+    setContextData(null);
+    setPersonalizedCare(null);
+    setLoading(true);
+    setError(null);
+    setContextError(null);
+    setPersonalizedError(null);
+  }, [id]);
+
   useEffect(() => {
     fetchPlant();
     fetchImages();
@@ -310,13 +323,18 @@ export default function PlantDetails() {
           await triggerDiagnosisAnalysis(created.id, false);
           await fetchDiagnoses();
           await fetchPlant();
+          await fetchRecommendationContext();
+          await fetchPersonalizedCare();
           setDiagnosisFeedback({
             type: 'success',
-            text: 'NVIDIA Nemotron diagnosis complete. Results updated below.',
+            text: 'NVIDIA Nemotron diagnosis complete. Results and care plan updated.',
           });
         } catch {
           // If model is offline, background worker already recorded model_unavailable
           await fetchDiagnoses();
+          await fetchPlant();
+          await fetchRecommendationContext();
+          await fetchPersonalizedCare();
         }
       }
     } catch (err) {
@@ -412,6 +430,7 @@ export default function PlantDetails() {
   }
 
   const plantDisplayName = plant.name || plant.plant_name || 'Plant';
+  const activeDiagnosis = diagnoses.length > 0 ? diagnoses[0] : plant.latest_diagnosis;
 
   return (
     <div className="p-6 md:p-10 max-w-7xl mx-auto fade-in pb-24">
@@ -489,6 +508,132 @@ export default function PlantDetails() {
         </div>
       </div>
 
+      {/* Active Clinical Pathology & Latest AI Diagnosis Card */}
+      <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-gray-100 mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-emerald-600" />
+            Active Botanical Pathology & AI Diagnosis
+          </h2>
+          <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+            {activeDiagnosis ? (activeDiagnosis.model_name || 'NVIDIA Nemotron') : 'Awaiting Scan'}
+          </span>
+        </div>
+
+        {diagnosesLoading && !activeDiagnosis ? (
+          <div className="py-6 text-center text-gray-400">
+            <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-emerald-600" />
+            <p className="text-xs font-medium">Checking clinical diagnosis records...</p>
+          </div>
+        ) : activeDiagnosis ? (
+          <div
+            className={`p-5 rounded-2xl border transition-all ${
+              activeDiagnosis.status === 'completed'
+                ? activeDiagnosis.disease_name?.toLowerCase().includes('healthy')
+                  ? 'border-emerald-200 bg-emerald-50/50'
+                  : 'border-rose-200 bg-rose-50/40'
+                : ['uncertain', 'inconclusive'].includes(activeDiagnosis.status)
+                ? 'border-amber-200 bg-amber-50/40'
+                : 'border-blue-200 bg-blue-50/40'
+            }`}
+          >
+            <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+              <div className="space-y-2 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${
+                      activeDiagnosis.status === 'completed'
+                        ? activeDiagnosis.disease_name?.toLowerCase().includes('healthy')
+                          ? 'bg-emerald-200 text-emerald-900'
+                          : 'bg-rose-200 text-rose-900'
+                        : ['uncertain', 'inconclusive'].includes(activeDiagnosis.status)
+                        ? 'bg-amber-200 text-amber-900'
+                        : 'bg-blue-200 text-blue-900'
+                    }`}
+                  >
+                    {activeDiagnosis.status === 'completed'
+                      ? activeDiagnosis.disease_name?.toLowerCase().includes('healthy')
+                        ? 'Healthy Specimen'
+                        : 'Active Condition'
+                      : activeDiagnosis.status || 'Pending'}
+                  </span>
+                  <h3 className="font-bold text-gray-900 text-lg">
+                    {activeDiagnosis.disease_name || 'Awaiting Diagnosis'}
+                  </h3>
+                  {activeDiagnosis.status === 'completed' && typeof activeDiagnosis.confidence === 'number' && activeDiagnosis.confidence > 0 && (
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-lg bg-white border border-gray-200 text-gray-800">
+                      {Math.round(activeDiagnosis.confidence * 100)}% Confidence
+                    </span>
+                  )}
+                  {activeDiagnosis.severity && (
+                    <span className="text-xs font-bold px-2 py-0.5 rounded-lg bg-white border border-gray-200 uppercase text-gray-700">
+                      Severity: {activeDiagnosis.severity}
+                    </span>
+                  )}
+                </div>
+
+                {activeDiagnosis.symptoms && (
+                  <p className="text-xs text-gray-700">
+                    <strong className="text-gray-900">Symptoms & Observations:</strong> {activeDiagnosis.symptoms}
+                  </p>
+                )}
+
+                {activeDiagnosis.diagnosis_details && (
+                  <p className="text-xs text-gray-600 leading-relaxed">
+                    {activeDiagnosis.diagnosis_details}
+                  </p>
+                )}
+
+                <p className="text-[11px] text-gray-400">
+                  Diagnosis recorded: {formatDateTime(activeDiagnosis.created_at || activeDiagnosis.diagnosed_at)}
+                </p>
+              </div>
+
+              <div className="shrink-0 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const uploadSection = document.getElementById('plant-photos-gallery-section');
+                    if (uploadSection) {
+                      uploadSection.scrollIntoView({ behavior: 'smooth' });
+                    }
+                    fileInputRef.current?.click();
+                  }}
+                  className="px-3.5 py-2 bg-white hover:bg-gray-50 text-gray-800 text-xs font-semibold rounded-xl border border-gray-200 shadow-2xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <Upload className="w-3.5 h-3.5 text-emerald-600" />
+                  Upload Photo & Re-scan
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-gray-50/80 border border-dashed border-gray-200 rounded-2xl p-6 text-center">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-2.5">
+              <Sparkles className="w-6 h-6" />
+            </div>
+            <h3 className="font-bold text-gray-800 text-sm mb-1">No diagnosis available for this plant yet</h3>
+            <p className="text-xs text-gray-500 max-w-md mx-auto mb-4">
+              Upload a leaf photo to screen for pests, blight, or nutrient deficiencies using local LLaVA / NVIDIA Nemotron AI.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                const uploadSection = document.getElementById('plant-photos-gallery-section');
+                if (uploadSection) {
+                  uploadSection.scrollIntoView({ behavior: 'smooth' });
+                }
+                fileInputRef.current?.click();
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-dark text-white rounded-xl text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              Upload Leaf Image & Run Diagnosis
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* Real Plant Information Cards */}
       <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-gray-100 mb-8">
         <div className="flex items-center justify-between mb-6">
@@ -517,7 +662,7 @@ export default function PlantDetails() {
       </div>
 
       {/* Upload Images & Gallery Section */}
-      <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-gray-100 mb-8">
+      <div id="plant-photos-gallery-section" className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-gray-100 mb-8">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
             <ImageIcon className="w-5 h-5 text-teal-600" />

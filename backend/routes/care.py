@@ -40,6 +40,13 @@ except ImportError:
 
 router = APIRouter(prefix="/api/care", tags=["Care Recommendations"])
 
+_STRUCTURED_GUIDANCE_CACHE: Dict[int, Dict[str, Any]] = {}
+
+
+def invalidate_personalized_care_cache(plant_id: int) -> None:
+    """Invalidates cached structured guidance when plant context or diagnosis changes."""
+    _STRUCTURED_GUIDANCE_CACHE.pop(plant_id, None)
+
 
 @router.get("/protocols", summary="List all approved botanical care and treatment protocols")
 def list_approved_protocols():
@@ -171,6 +178,8 @@ async def generate_plant_personalized_care(
             plant_id=plant_id,
             supabase=supabase
         )
+        # Store in cache
+        _STRUCTURED_GUIDANCE_CACHE[plant_id] = dict(personalized_result)
         return personalized_result
     except Exception as nvd_err:
         raise HTTPException(
@@ -190,8 +199,8 @@ async def get_latest_personalized_care(
     supabase: Client = Depends(get_supabase)
 ):
     """
-    Retrieves the most recent personalized care guidance from Supabase,
-    or generates fresh guidance on-demand if none is saved.
+    Retrieves the most recent personalized care guidance from Supabase or cache,
+    ensuring it reflects the plant's latest active diagnosis, or generates fresh guidance on-demand.
     """
     # 1. Verify plant exists
     try:
@@ -209,7 +218,26 @@ async def get_latest_personalized_care(
             detail=f"Database error validating plant: {str(exc)}"
         )
 
-    # 2. Check for existing structured record in care_recommendations
+    # 2. Check latest completed diagnosis for this plant
+    latest_disease = None
+    latest_diag_id = None
+    try:
+        diag_res = supabase.table("diagnoses").select("id, disease_name, status").eq("plant_id", plant_id).order("id", desc=True).limit(1).execute()
+        if diag_res.data:
+            latest_diag_id = diag_res.data[0]["id"]
+            latest_disease = diag_res.data[0].get("disease_name")
+    except Exception:
+        pass
+
+    # 3. Check in-memory structured cache first
+    cached = _STRUCTURED_GUIDANCE_CACHE.get(plant_id)
+    if cached and isinstance(cached, dict):
+        cached_disease = cached.get("active_diagnosis")
+        # Ensure cached diagnosis matches current diagnosis
+        if not latest_disease or cached_disease == latest_disease:
+            return cached
+
+    # 4. Check for existing structured record in care_recommendations
     try:
         recs = (
             supabase.table("care_recommendations")
@@ -223,12 +251,15 @@ async def get_latest_personalized_care(
             latest = recs.data[0]
             structured = latest.get("structured_guidance")
             if isinstance(structured, dict) and "personalized_explanation" in structured:
-                structured["care_recommendation_id"] = latest["id"]
-                return structured
+                # Validate diagnosis alignment
+                if not latest_disease or structured.get("active_diagnosis") == latest_disease:
+                    structured["care_recommendation_id"] = latest["id"]
+                    _STRUCTURED_GUIDANCE_CACHE[plant_id] = structured
+                    return structured
     except Exception:
         pass
 
-    # 3. If no structured record exists and auto_generate is true, generate now
+    # 5. If no valid aligned record exists and auto_generate is true, generate now
     if auto_generate:
         return await generate_plant_personalized_care(plant_id=plant_id, supabase=supabase)
 

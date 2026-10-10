@@ -308,9 +308,19 @@ async def execute_diagnosis_inference(diagnosis_id: int, supabase: Client) -> No
         # 7. If diagnosis completed successfully, update plant health status
         if final_status == "completed":
             is_healthy = analysis_result.get("is_healthy", False)
-            new_health_status = "healthy" if is_healthy else "needs_attention"
-            # Deterministic health score: 95-100 if healthy, or scaled down by confidence
-            new_health_score = 98.0 if is_healthy else round(max(10.0, 100.0 - (analysis_result["confidence"] * 60.0)), 1)
+            sev = (analysis_result.get("severity") or "").lower()
+            if is_healthy:
+                new_health_status = "healthy"
+                new_health_score = 98.0
+            elif sev in ("high", "urgent", "critical"):
+                new_health_status = "critical"
+                new_health_score = 35.0
+            elif sev == "medium":
+                new_health_status = "needs_attention"
+                new_health_score = 55.0
+            else:
+                new_health_status = "needs_attention"
+                new_health_score = 75.0
 
             try:
                 supabase.table("plants").update({
@@ -320,6 +330,17 @@ async def execute_diagnosis_inference(diagnosis_id: int, supabase: Client) -> No
                 }).eq("id", plant_id).execute()
             except Exception:
                 pass
+
+            # Invalidate cached personalized care so new diagnosis gets fresh guidance
+            try:
+                from backend.routes.care import invalidate_personalized_care_cache
+                invalidate_personalized_care_cache(plant_id)
+            except Exception:
+                try:
+                    from routes.care import invalidate_personalized_care_cache
+                    invalidate_personalized_care_cache(plant_id)
+                except Exception:
+                    pass
 
             # Best-effort activity log
             try:
